@@ -1,0 +1,34 @@
+{
+  "name": "hu",
+  "version": "1.0.0",
+  "description": "一款 Roguelike 麻将卡组构建游戏，灵感来自 Balatro。组牌、算番、收集神牌，向着最终的「胡」进发！",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "keywords": [
+    "mahjong",
+    "roguelike",
+    "deck-builder",
+    "phaser",
+    "typescript",
+    "youtube-playables"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "terser": "^5.46.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}
