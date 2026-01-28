@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { generateTileTextures } from '../ui/TileTextureGenerator';
 import { AudioManager } from '../audio/AudioManager';
+import { debugLog } from '../errorHandler';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -27,6 +28,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
+    debugLog('BootScene.create()');
     this.updateHTMLLoadingProgress(0.5, 'Initializing audio...');
 
     // ── Initialize Audio System ──

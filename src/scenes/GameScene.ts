@@ -16,6 +16,7 @@ import { COMMON_GOD_TILES, RARE_GOD_TILES } from '../data/godTiles';
 import { ALL_FLOWER_CARDS, createFlowerCardFromData } from '../data/flowerCards';
 import { DeckVariant, DECK_VARIANTS, isRedDoraTile, getRedDoraChipBonus } from '../core/DeckVariant';
 import { AudioManager } from '../audio/AudioManager';
+import { debugLog } from '../errorHandler';
 
 /**
  * GameScene — Core gameplay loop for HU!
@@ -90,6 +91,7 @@ export class GameScene extends Phaser.Scene {
     totalGodTilesCollected?: number;
     deckVariant?: DeckVariant;
   }) {
+    debugLog('GameScene.create() round=' + (data?.roundNumber ?? 1));
     // Initialize from passed data (from shop scene)
     this._roundNumber = data?.roundNumber ?? 1;
     this._targetScore = data?.targetScore ?? 1000;

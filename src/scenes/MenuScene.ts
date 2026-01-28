@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DeckVariant, getAllDeckVariants, DECK_VARIANTS } from '../core/DeckVariant';
 import { AudioManager } from '../audio/AudioManager';
+import { debugLog } from '../errorHandler';
 
 interface HighScoreData {
   score: number;
@@ -29,6 +30,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    debugLog('MenuScene.create()');
     // Load high score from localStorage
     this.loadHighScore();
 

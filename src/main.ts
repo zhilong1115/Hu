@@ -1,5 +1,7 @@
-import './errorHandler';
+import { debugLog } from './errorHandler';
 import Phaser from 'phaser';
+
+debugLog('main.ts loaded');
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
@@ -42,8 +44,16 @@ const config: Phaser.Types.Core.GameConfig = {
   }
 };
 
+debugLog('Creating Phaser game...');
+
 // Initialize the game
 const game = new Phaser.Game(config);
 
+game.events.on('ready', () => {
+  debugLog('Phaser game ready!');
+});
+
 // Global game reference for debugging
 (window as any).game = game;
+
+debugLog('Phaser.Game created');
