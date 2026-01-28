@@ -1,3 +1,4 @@
+import './errorHandler';
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
