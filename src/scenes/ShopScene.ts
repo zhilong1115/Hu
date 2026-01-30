@@ -185,7 +185,8 @@ export class ShopScene extends Phaser.Scene {
       // Fade out before returning to menu
       this.cameras.main.fadeOut(500);
 
-      this.time.delayedCall(500, () => {
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        // scene.start() automatically stops current scene and starts target
         this.scene.start('MenuScene');
       });
     });
@@ -330,7 +331,7 @@ export class ShopScene extends Phaser.Scene {
       // Calculate next round target score (increase difficulty)
       const nextTargetScore = Math.floor(1000 + (this._roundNumber * 500));
 
-      // Transition to GameScene
+      // scene.start() automatically stops current scene and starts target
       this.scene.start('GameScene', {
         roundNumber: this._roundNumber + 1,
         targetScore: nextTargetScore,

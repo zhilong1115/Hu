@@ -1,4 +1,4 @@
-import { FlowerCardType, FlowerEffect, FlowerCardEffectContext } from '../roguelike/FlowerCard';
+import { FlowerCardType, FlowerEffect, FlowerCardEffectContext, FlowerCard } from '../roguelike/FlowerCard';
 import { TileSuit, TileValue } from '../core/Tile';
 
 export interface FlowerCardData {
@@ -33,6 +33,124 @@ export const BAMBOO_FLOWER_CARDS: FlowerCardData[] = [
             ];
             const chosen = await context.drawFromOptions(options);
             // The chosen tile will be added to hand by the caller
+          }
+        }
+      }
+    ]
+  },
+  // NEW: 换牌 - Exchange tile
+  {
+    type: FlowerCardType.BAMBOO,
+    name: '移花接木',
+    description: '选择1张牌，从牌堆中找一张相同花色的牌替换',
+    cost: 4,
+    rarity: 'common',
+    effects: [
+      {
+        name: '换牌',
+        description: '用牌堆中同花色的牌替换',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          if (context.selectedTiles.length > 0) {
+            const tile = context.selectedTiles[0];
+            const targetSuit = tile.suit;
+            // Find a tile of same suit in draw pile
+            const suitTileIndex = context.drawPile.findIndex(t => t.suit === targetSuit);
+            if (suitTileIndex !== -1) {
+              const newTile = context.drawPile.splice(suitTileIndex, 1)[0];
+              context.hand.removeTile(tile);
+              context.hand.addTile(newTile);
+              context.drawPile.push(tile); // Put old tile back in pile
+            }
+          }
+        }
+      }
+    ]
+  },
+  // NEW: 定向摸牌 - 使用后立即重排牌堆，下次弃牌生效
+  // 注意：pop() 从末尾取牌，所以目标花色要放末尾
+  {
+    type: FlowerCardType.BAMBOO,
+    name: '万里挑一',
+    description: '使用后，下次弃牌必定摸到万子牌',
+    cost: 5,
+    rarity: 'rare',
+    effects: [
+      {
+        name: '万子吸引',
+        description: '重排牌堆，万子在末尾',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          // Move wan tiles to END of draw pile (pop takes from end)
+          const wanTiles = context.drawPile.filter(t => t.suit === TileSuit.Wan);
+          const otherTiles = context.drawPile.filter(t => t.suit !== TileSuit.Wan);
+          context.drawPile.length = 0;
+          context.drawPile.push(...otherTiles, ...wanTiles);
+        }
+      }
+    ]
+  },
+  {
+    type: FlowerCardType.BAMBOO,
+    name: '筒子如意',
+    description: '使用后，下次弃牌必定摸到筒子牌',
+    cost: 5,
+    rarity: 'rare',
+    effects: [
+      {
+        name: '筒子吸引',
+        description: '重排牌堆，筒子在末尾',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          const tongTiles = context.drawPile.filter(t => t.suit === TileSuit.Tong);
+          const otherTiles = context.drawPile.filter(t => t.suit !== TileSuit.Tong);
+          context.drawPile.length = 0;
+          context.drawPile.push(...otherTiles, ...tongTiles);
+        }
+      }
+    ]
+  },
+  {
+    type: FlowerCardType.BAMBOO,
+    name: '条条大路',
+    description: '使用后，下次弃牌必定摸到条子牌',
+    cost: 5,
+    rarity: 'rare',
+    effects: [
+      {
+        name: '条子吸引',
+        description: '重排牌堆，条子在末尾',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          const tiaoTiles = context.drawPile.filter(t => t.suit === TileSuit.Tiao);
+          const otherTiles = context.drawPile.filter(t => t.suit !== TileSuit.Tiao);
+          context.drawPile.length = 0;
+          context.drawPile.push(...otherTiles, ...tiaoTiles);
+        }
+      }
+    ]
+  },
+  // NEW: 复制牌
+  {
+    type: FlowerCardType.BAMBOO,
+    name: '镜花水月',
+    description: '复制选中的1张牌（从牌堆找同样的牌加入手牌）',
+    cost: 6,
+    rarity: 'rare',
+    effects: [
+      {
+        name: '复制',
+        description: '获得一张相同的牌',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          if (context.selectedTiles.length > 0) {
+            const tile = context.selectedTiles[0];
+            const targetKey = `${tile.suit}-${tile.value}`;
+            const sameIndex = context.drawPile.findIndex(t => `${t.suit}-${t.value}` === targetKey);
+            if (sameIndex !== -1) {
+              const newTile = context.drawPile.splice(sameIndex, 1)[0];
+              context.hand.addTile(newTile);
+            }
           }
         }
       }
@@ -137,6 +255,119 @@ export const ORCHID_FLOWER_CARDS: FlowerCardData[] = [
         triggerCondition: 'on_win',
         effect: (context: FlowerCardEffectContext) => {
           context.bonusFan += 2;
+        }
+      }
+    ]
+  },
+  // NEW: 倍率加成类
+  {
+    type: FlowerCardType.ORCHID,
+    name: '金玉满堂',
+    description: '倍率永久+0.5',
+    cost: 5,
+    rarity: 'common',
+    effects: [
+      {
+        name: '添金',
+        description: '增加倍率',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          // Will be handled in game scene
+          context.bonusMult = (context.bonusMult || 0) + 0.5;
+        }
+      }
+    ]
+  },
+  {
+    type: FlowerCardType.ORCHID,
+    name: '财源滚滚',
+    description: '倍率永久×1.5',
+    cost: 8,
+    rarity: 'rare',
+    effects: [
+      {
+        name: '滚雪球',
+        description: '倍率翻倍',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          context.multMultiplier = (context.multMultiplier || 1) * 1.5;
+        }
+      }
+    ]
+  },
+  {
+    type: FlowerCardType.ORCHID,
+    name: '锦上添花',
+    description: '基础分+100',
+    cost: 4,
+    rarity: 'common',
+    effects: [
+      {
+        name: '添花',
+        description: '增加基础分',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          context.bonusScore = (context.bonusScore || 0) + 100;
+        }
+      }
+    ]
+  },
+  // NEW: 弃牌增强
+  {
+    type: FlowerCardType.ORCHID,
+    name: '妙手回春',
+    description: '+2次弃牌机会',
+    cost: 6,
+    rarity: 'common',
+    effects: [
+      {
+        name: '回春',
+        description: '增加弃牌次数',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          context.discardsRemaining += 2;
+        }
+      }
+    ]
+  },
+  {
+    type: FlowerCardType.ORCHID,
+    name: '点石成金',
+    description: '下次弃牌可多弃2张多摸2张（弃牌上限+2）',
+    cost: 5,
+    rarity: 'common',
+    effects: [
+      {
+        name: '扩容',
+        description: '增加单次弃牌上限',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          // Will be handled by setting a flag that increases max discard for next discard
+          context.extraDiscardLimit = (context.extraDiscardLimit || 0) + 2;
+        }
+      }
+    ]
+  },
+  // NEW: 变牌类
+  {
+    type: FlowerCardType.ORCHID,
+    name: '七十二变',
+    description: '选中的牌变成任意指定数字(1-9)',
+    cost: 7,
+    rarity: 'rare',
+    effects: [
+      {
+        name: '变化',
+        description: '改变牌面数字',
+        triggerCondition: 'on_use',
+        effect: (context: FlowerCardEffectContext) => {
+          // Will prompt for number selection in game scene
+          if (context.selectedTiles.length > 0 && context.transformToValue) {
+            const tile = context.selectedTiles[0];
+            if (tile.suit === TileSuit.Wan || tile.suit === TileSuit.Tiao || tile.suit === TileSuit.Tong) {
+              context.transformToValue(tile);
+            }
+          }
         }
       }
     ]
@@ -352,8 +583,7 @@ export const getRandomFlowerCard = (type?: FlowerCardType, rarity?: string): Flo
 /**
  * Create a FlowerCard instance from FlowerCardData
  */
-export const createFlowerCardFromData = (data: FlowerCardData): import('../roguelike/FlowerCard').FlowerCard => {
-  const { FlowerCard } = require('../roguelike/FlowerCard');
+export const createFlowerCardFromData = (data: FlowerCardData): FlowerCard => {
   return new FlowerCard(
     data.type,
     data.name,

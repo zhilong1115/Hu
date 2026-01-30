@@ -151,6 +151,75 @@ function checkSevenPairs(tiles: Tile[]): HandDecomposition | null {
   };
 }
 
+// ─── Luxury Seven Pairs check (豪华七对) ────────────────────────────────────
+// 3 quads (4 of a kind, NOT declared as kong) + 1 pair = 14 tiles
+// Appears as 7 "pairs" but 3 of them are actually 4-of-a-kinds
+
+function checkLuxurySevenPairs(tiles: Tile[]): { isLuxury: boolean; quadCount: number } {
+  if (tiles.length !== 14) return { isLuxury: false, quadCount: 0 };
+
+  const freq = buildFrequencyMap(tiles);
+  
+  // Count quads (4 of a kind) and pairs
+  let quadCount = 0;
+  let pairCount = 0;
+  
+  for (const count of freq.values()) {
+    if (count === 4) {
+      quadCount++;
+    } else if (count === 2) {
+      pairCount++;
+    } else {
+      return { isLuxury: false, quadCount: 0 };
+    }
+  }
+  
+  // Luxury seven pairs: 3 quads + 1 pair = 3*4 + 2 = 14
+  if (quadCount === 3 && pairCount === 1) {
+    return { isLuxury: true, quadCount: 3 };
+  }
+  
+  // Also check for 2 quads + 3 pairs (lesser luxury)
+  if (quadCount >= 1 && quadCount * 4 + pairCount * 2 === 14) {
+    return { isLuxury: quadCount >= 2, quadCount };
+  }
+  
+  return { isLuxury: false, quadCount: 0 };
+}
+
+// ─── Consecutive Seven Pairs check (连七对) ─────────────────────────────────
+// Same suit, 7 consecutive pairs: 11223344556677
+
+function checkConsecutiveSevenPairs(tiles: Tile[]): boolean {
+  if (tiles.length !== 14) return false;
+
+  const freq = buildFrequencyMap(tiles);
+  if (freq.size !== 7) return false;
+
+  // All must be pairs
+  for (const count of freq.values()) {
+    if (count !== 2) return false;
+  }
+
+  // Check if all same suit and consecutive
+  const keys = [...freq.keys()];
+  const suits = new Set(keys.map(k => k.split('-')[0]));
+  
+  // Must be single numbered suit
+  if (suits.size !== 1) return false;
+  const suit = [...suits][0];
+  if (!isNumberSuit(suit as TileSuit)) return false;
+
+  // Get values and check consecutive
+  const values = keys.map(k => Number(k.split('-')[1])).sort((a, b) => a - b);
+  
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] !== values[i - 1] + 1) return false;
+  }
+
+  return true;
+}
+
 // ─── Standard 4-melds + 1-pair decomposition ───────────────────────────────
 
 /**
@@ -409,7 +478,21 @@ export class FanEvaluator {
     }
 
     if (decomp.form === 'seven_pairs') {
-      fans.push(lookupFan('七对'));
+      // Check for special seven pairs variants first
+      const luxuryCheck = checkLuxurySevenPairs(tiles);
+      const isConsecutive = checkConsecutiveSevenPairs(tiles);
+      
+      if (luxuryCheck.isLuxury && luxuryCheck.quadCount >= 3) {
+        // 豪华七对: 3 quads + 1 pair
+        fans.push(lookupFan('豪华七对'));
+      } else if (isConsecutive) {
+        // 连七对: consecutive pairs same suit
+        fans.push(lookupFan('连七对'));
+      } else {
+        // Regular seven pairs
+        fans.push(lookupFan('七对'));
+      }
+      
       // Seven pairs can stack with flush patterns
       if (checkFullFlush(tiles)) {
         fans.push(lookupFan('清一色'));

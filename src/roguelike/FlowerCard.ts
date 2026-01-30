@@ -30,6 +30,12 @@ export interface FlowerCardEffectContext {
   fanMultiplier: number;
   debuffs: string[];
 
+  // NEW: Multiplier bonuses (for 金玉满堂, 财源滚滚 etc)
+  bonusMult?: number;          // Add to multiplier
+  multMultiplier?: number;     // Multiply the multiplier
+  bonusScore?: number;         // Add to base score
+  extraDiscardLimit?: number;  // Increase max discard tiles for next discard
+
   // Shop state (for shop-related effects)
   nextGodTileFree?: boolean;
 
@@ -37,6 +43,7 @@ export interface FlowerCardEffectContext {
   redrawHand?: () => void;
   clearDebuffs?: () => void;
   drawFromOptions?: (options: Tile[]) => Promise<Tile>;
+  transformToValue?: (tile: Tile) => void;  // For 七十二变
 }
 
 export interface FlowerEffect {

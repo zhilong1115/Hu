@@ -24,9 +24,9 @@ export default defineConfig({
     },
     terserOptions: {
       compress: {
-        drop_console: true,
+        drop_console: false, // TEMP: enable for debugging
         drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info', 'console.debug'],
+        pure_funcs: [], // TEMP: disabled for debugging
         passes: 2,
       },
       mangle: {
@@ -42,6 +42,7 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    allowedHosts: ['.trycloudflare.com', 'hu.friday-task.com'],
   },
   optimizeDeps: {
     include: ['phaser'],

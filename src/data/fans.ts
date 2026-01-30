@@ -30,6 +30,16 @@ export const STANDARD_FANS: Fan[] = [
     description: '七个对子'
   },
   {
+    name: '连七对',
+    points: 48,
+    description: '同一花色7个连续对子（如11223344556677万）'
+  },
+  {
+    name: '豪华七对',
+    points: 64,
+    description: '3个四张相同的牌+1对，不能开杠'
+  },
+  {
     name: '三暗刻',
     points: 4,
     description: '三个暗刻子'

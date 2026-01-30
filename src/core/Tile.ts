@@ -146,6 +146,14 @@ export function isSameTile(a: Tile, b: Tile): boolean {
 }
 
 /**
+ * Returns a unique key for a tile type (ignoring copy index)
+ * e.g. "wan-1", "wind-1", "dragon-3"
+ */
+export function tileKey(tile: Tile): string {
+  return `${tile.suit}-${tile.value}`;
+}
+
+/**
  * Groups tiles by their type (same suit and value)
  */
 export function groupTilesByType(tiles: Tile[]): Map<string, Tile[]> {

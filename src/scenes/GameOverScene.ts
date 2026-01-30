@@ -373,7 +373,8 @@ export class GameOverScene extends Phaser.Scene {
     // Fade out before transitioning
     this.cameras.main.fadeOut(500);
 
-    this.time.delayedCall(500, () => {
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      // scene.start() automatically stops current scene and starts target
       this.scene.start('MenuScene');
     });
   }
@@ -382,7 +383,8 @@ export class GameOverScene extends Phaser.Scene {
     // Fade out before transitioning
     this.cameras.main.fadeOut(500);
 
-    this.time.delayedCall(500, () => {
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      // scene.start() automatically stops current scene and starts target
       this.scene.start('MenuScene');
     });
   }

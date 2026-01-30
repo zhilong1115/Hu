@@ -45,6 +45,10 @@ export class AudioManager {
   private currentMusicTrack: MusicTrack | null = null;
   private musicOscillators: OscillatorNode[] = [];
   private musicLoopInterval: number | null = null;
+  
+  // Track if audio context has been unlocked by user gesture
+  private hasUserGesture: boolean = false;
+  private resumeAttempted: boolean = false;
 
   private constructor() {
     // Initialize Web Audio API
@@ -63,6 +67,52 @@ export class AudioManager {
     // Load settings from localStorage
     this.loadSettings();
     this.applySettings();
+    
+    // Listen for user gesture to unlock audio
+    this.setupUserGestureListener();
+  }
+  
+  /**
+   * Set up listener for user gesture to unlock audio context
+   */
+  private setupUserGestureListener(): void {
+    const unlockAudio = async () => {
+      if (this.hasUserGesture) return; // Already unlocked
+      
+      this.hasUserGesture = true;
+      
+      // Remove all listeners now that we've unlocked
+      ['click', 'touchstart', 'keydown'].forEach(event => {
+        document.removeEventListener(event, unlockAudio);
+      });
+      
+      if (this.audioContext.state === 'suspended') {
+        try {
+          await this.audioContext.resume();
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+      
+      // Restart music if it was waiting
+      if (this.currentMusicTrack) {
+        const track = this.currentMusicTrack;
+        this.currentMusicTrack = null;
+        this.playMusic(track);
+      }
+    };
+    
+    // Listen for common user gestures (will be removed after first unlock)
+    ['click', 'touchstart', 'keydown'].forEach(event => {
+      document.addEventListener(event, unlockAudio, { passive: true });
+    });
+  }
+  
+  /**
+   * Check if audio is ready (user has interacted)
+   */
+  public isReady(): boolean {
+    return this.hasUserGesture && this.audioContext.state === 'running';
   }
 
   public static getInstance(): AudioManager {
@@ -74,10 +124,21 @@ export class AudioManager {
 
   /**
    * Resume audio context (required after user interaction on some browsers)
+   * Only attempts once to avoid console spam
    */
   public async resume(): Promise<void> {
+    if (this.resumeAttempted) return;
+    this.resumeAttempted = true;
+    
     if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
+      try {
+        await this.audioContext.resume();
+        this.hasUserGesture = true;
+      } catch (e) {
+        // Will be unlocked on user gesture
+      }
+    } else {
+      this.hasUserGesture = true;
     }
   }
 
@@ -90,6 +151,7 @@ export class AudioManager {
    */
   public playSFX(effect: SoundEffect): void {
     if (this.settings.muted) return;
+    if (!this.hasUserGesture || this.audioContext.state !== 'running') return;
 
     switch (effect) {
       case 'tileClick':
@@ -390,7 +452,9 @@ export class AudioManager {
     this.stopMusic();
     this.currentMusicTrack = track;
 
+    // Don't try to play if muted or audio context not ready
     if (this.settings.muted) return;
+    if (!this.hasUserGesture || this.audioContext.state !== 'running') return;
 
     switch (track) {
       case 'menu':
@@ -480,7 +544,7 @@ export class AudioManager {
 
     playLoop();
     this.musicLoopInterval = window.setInterval(() => {
-      if (!this.settings.muted) {
+      if (!this.settings.muted && this.hasUserGesture && this.audioContext.state === 'running') {
         playLoop();
       }
     }, loopDuration * 1000);
@@ -523,7 +587,7 @@ export class AudioManager {
 
     playLoop();
     this.musicLoopInterval = window.setInterval(() => {
-      if (!this.settings.muted) {
+      if (!this.settings.muted && this.hasUserGesture && this.audioContext.state === 'running') {
         playLoop();
       }
     }, loopDuration * 1000);
@@ -569,7 +633,7 @@ export class AudioManager {
 
     playLoop();
     this.musicLoopInterval = window.setInterval(() => {
-      if (!this.settings.muted) {
+      if (!this.settings.muted && this.hasUserGesture && this.audioContext.state === 'running') {
         playLoop();
       }
     }, 4000); // 4 second loop
@@ -612,7 +676,7 @@ export class AudioManager {
 
     playLoop();
     this.musicLoopInterval = window.setInterval(() => {
-      if (!this.settings.muted) {
+      if (!this.settings.muted && this.hasUserGesture && this.audioContext.state === 'running') {
         playLoop();
       }
     }, loopDuration * 1000);

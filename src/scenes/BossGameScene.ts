@@ -631,14 +631,19 @@ export class BossGameScene extends Phaser.Scene {
       ease: 'Power2.Out',
       onComplete: () => {
         this.time.delayedCall(2000, () => {
-          // Transition to shop
-          this.scene.start('ShopScene', {
-            roundNumber: this._roundNumber + 1,
-            currentScore: this._currentScore,
-            activeGodTiles: this._activeGodTiles,
-            gold: this._gold,
-            flowerCardManager: this._flowerCardManager,
-            deckVariant: this._deckVariant
+          // Fade out before transition
+          this.cameras.main.fadeOut(500);
+
+          this.cameras.main.once('camerafadeoutcomplete', () => {
+            // scene.start() automatically stops current scene and starts target
+            this.scene.start('ShopScene', {
+              roundNumber: this._roundNumber + 1,
+              currentScore: this._currentScore,
+              activeGodTiles: this._activeGodTiles,
+              gold: this._gold,
+              flowerCardManager: this._flowerCardManager,
+              deckVariant: this._deckVariant
+            });
           });
         });
       }
@@ -676,9 +681,15 @@ export class BossGameScene extends Phaser.Scene {
       ease: 'Power2.Out',
       onComplete: () => {
         this.time.delayedCall(2000, () => {
-          this.scene.start('GameOverScene', {
-            finalScore: this._currentScore,
-            roundReached: this._roundNumber
+          // Fade out before transition
+          this.cameras.main.fadeOut(500);
+
+          this.cameras.main.once('camerafadeoutcomplete', () => {
+            // scene.start() automatically stops current scene and starts target
+            this.scene.start('GameOverScene', {
+              finalScore: this._currentScore,
+              roundReached: this._roundNumber
+            });
           });
         });
       }

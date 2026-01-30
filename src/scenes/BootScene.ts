@@ -89,13 +89,20 @@ export class BootScene extends Phaser.Scene {
 
     // Auto-transition to menu after 2 seconds with fade
     this.time.delayedCall(2000, () => {
-      this.cameras.main.fadeOut(500);
-
-      this.time.delayedCall(500, () => {
+      let transitioned = false;
+      const doTransition = () => {
+        if (transitioned) return;
+        transitioned = true;
         // Hide HTML loading screen
         this.hideHTMLLoadingScreen();
+        // scene.start() automatically stops current scene and starts target
         this.scene.start('MenuScene');
-      });
+      };
+
+      this.cameras.main.fadeOut(500);
+      this.cameras.main.once('camerafadeoutcomplete', doTransition);
+      // Fallback timeout for mobile
+      this.time.delayedCall(600, doTransition);
     });
   }
 

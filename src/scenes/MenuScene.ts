@@ -221,7 +221,13 @@ export class MenuScene extends Phaser.Scene {
 
   private createFloatingTiles(): void {
     // Create floating mahjong tiles in the background
-    const tileTypes = ['m1', 'm5', 'm9', 's1', 's5', 's9', 'p1', 'p5', 'p9', 'east', 'south', 'west', 'north'];
+    // Use the correct texture keys from TileTextureGenerator
+    const tileTypes = [
+      'face:wan-1', 'face:wan-5', 'face:wan-9',
+      'face:tiao-1', 'face:tiao-5', 'face:tiao-9',
+      'face:tong-1', 'face:tong-5', 'face:tong-9',
+      'face:wind-1', 'face:wind-2', 'face:wind-3', 'face:wind-4'
+    ];
     const numTiles = 15;
 
     for (let i = 0; i < numTiles; i++) {
@@ -453,16 +459,19 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private startGameWithDeck(): void {
-    // Fade out before transitioning
-    this.cameras.main.fadeOut(500);
-
-    this.time.delayedCall(500, () => {
+    debugLog('🚀 startGameWithDeck() called');
+    debugLog('🚀 Selected deck: ' + this._selectedDeckVariant.name);
+    try {
+      debugLog('🚀 Calling scene.start(GameScene)...');
       this.scene.start('GameScene', {
         roundNumber: 1,
         targetScore: 1000,
         deckVariant: this._selectedDeckVariant
       });
-    });
+      debugLog('🚀 scene.start() called successfully');
+    } catch (e: any) {
+      debugLog('❌ scene.start ERROR: ' + e.message);
+    }
   }
 
   private showSettings(): void {
