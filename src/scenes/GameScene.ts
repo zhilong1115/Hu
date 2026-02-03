@@ -184,6 +184,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this._gold = data?.gold ?? 10;
+    console.log(`[Gold] GameScene started with gold: ${this._gold} (from data: ${data?.gold})`);
     this._currentScore = 0;
     this._handsRemaining = this.INITIAL_HANDS;
     this._discardsRemaining = this.INITIAL_DISCARDS;
@@ -682,7 +683,9 @@ export class GameScene extends Phaser.Scene {
 
     // Add gold reward for meld
     const meldGoldReward = MELD_GOLD_REWARDS[meldType];
+    const goldBefore = this._gold;
     this._gold += meldGoldReward;
+    console.log(`[Gold] Meld ${meldType} reward: +${meldGoldReward}, Before: ${goldBefore}, After: ${this._gold}`);
     this.updateGoldDisplay();
 
     // Show meld animation with gold reward
@@ -831,8 +834,11 @@ export class GameScene extends Phaser.Scene {
 
     // Apply unused discard bonus (+5 gold per unused discard)
     const unusedDiscardBonus = this._discardsRemaining * UNUSED_DISCARD_GOLD_BONUS;
+    console.log(`[Gold] Unused discards: ${this._discardsRemaining}, Bonus per: ${UNUSED_DISCARD_GOLD_BONUS}, Total bonus: ${unusedDiscardBonus}`);
     if (unusedDiscardBonus > 0) {
+      const goldBeforeBonus = this._gold;
       this._gold += unusedDiscardBonus;
+      console.log(`[Gold] Unused discard bonus applied. Before: ${goldBeforeBonus}, After: ${this._gold}`);
       this.showMessage(`剩余弃牌奖励: +${unusedDiscardBonus}💰 (${this._discardsRemaining}×${UNUSED_DISCARD_GOLD_BONUS})`, '#ffd700');
     }
 
@@ -904,8 +910,11 @@ export class GameScene extends Phaser.Scene {
 
     // Apply unused discard bonus (+5 gold per unused discard)
     const unusedDiscardBonus = this._discardsRemaining * UNUSED_DISCARD_GOLD_BONUS;
+    console.log(`[Gold] Pihu - Unused discards: ${this._discardsRemaining}, Bonus: ${unusedDiscardBonus}`);
     if (unusedDiscardBonus > 0) {
+      const goldBeforePihu = this._gold;
       this._gold += unusedDiscardBonus;
+      console.log(`[Gold] Pihu bonus applied. Before: ${goldBeforePihu}, After: ${this._gold}`);
       this.updateGoldDisplay();
     }
 
@@ -1319,6 +1328,7 @@ export class GameScene extends Phaser.Scene {
               });
             } else {
               // Transition to shop scene
+              console.log(`[Gold] Transitioning to shop with gold: ${this._gold}`);
               this.scene.start('ShopScene', {
                 roundNumber: nextRound,
                 currentScore: this._currentScore,

@@ -104,18 +104,23 @@ export class ShopScene extends Phaser.Scene {
     });
     this._roundInfoText.setOrigin(0.5);
 
-    // Gold display
-    this._goldText = this.add.text(20, 150, `金币: ${this._shop.playerGold}`, {
+    // Gold display - prominent position below round info
+    this._goldText = this.add.text(centerX, 140, `💰 ${this._shop.playerGold} 金币`, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '20px',
-      color: '#ffd700'
+      fontSize: '28px',
+      color: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 3
     });
+    this._goldText.setOrigin(0.5);
+    
+    console.log('[Shop] Initial gold:', this._shop.playerGold);
 
-    // Shop UI Container
+    // Shop UI Container - positioned lower to give room for header
     this._shopUI = new ShopUI(
       this,
       centerX,
-      height * 0.50,
+      height * 0.55,
       this._shop,
       this._activeGodTiles,
       this._flowerCardManager
@@ -237,7 +242,8 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private updateGoldDisplay(): void {
-    this._goldText.setText(`金币: ${this._shop.playerGold}`);
+    this._goldText.setText(`💰 ${this._shop.playerGold} 金币`);
+    console.log('[Shop] Updated gold display:', this._shop.playerGold);
   }
 
   private showPurchaseFeedback(item: ShopItem): void {
