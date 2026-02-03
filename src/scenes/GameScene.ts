@@ -29,8 +29,8 @@ export type MeldType = 'chow' | 'pong' | 'kong';
  * Meld gold rewards per GAME_DESIGN.md
  */
 const MELD_GOLD_REWARDS: Record<MeldType, number> = {
-  chow: 2,   // 吃
-  pong: 3,   // 碰
+  chow: 3,   // 吃
+  pong: 5,   // 碰
   kong: 10   // 杠
 };
 
