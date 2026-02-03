@@ -27,6 +27,20 @@ import { Material } from '../data/materials';
 export type MeldType = 'chow' | 'pong' | 'kong';
 
 /**
+ * Meld gold rewards per GAME_DESIGN.md
+ */
+const MELD_GOLD_REWARDS: Record<MeldType, number> = {
+  chow: 2,   // 吃
+  pong: 3,   // 碰
+  kong: 10   // 杠
+};
+
+/**
+ * Gold bonus per unused discard when winning
+ */
+const UNUSED_DISCARD_GOLD_BONUS = 5;
+
+/**
  * PlayedMeld — Stored meld with multiplier info
  */
 export interface PlayedMeld {
@@ -74,6 +88,7 @@ export class GameScene extends Phaser.Scene {
   private _handsRemainingText!: Phaser.GameObjects.Text;
   private _discardsRemainingText!: Phaser.GameObjects.Text;
   private _drawPileCountText!: Phaser.GameObjects.Text;
+  private _goldText!: Phaser.GameObjects.Text;
   private _meldMultiplierText!: Phaser.GameObjects.Text;
   private _meldInfoText!: Phaser.GameObjects.Text;
 
@@ -248,7 +263,7 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(1, 0.5);
 
     // Gold display
-    this.add.text(width - 20, infoY + 30, `金币: ${this._gold}`, {
+    this._goldText = this.add.text(width - 20, infoY + 30, `金币: ${this._gold}`, {
       fontFamily: 'Courier New, monospace',
       fontSize: '16px',
       color: '#ffd700'
@@ -531,6 +546,7 @@ export class GameScene extends Phaser.Scene {
     if (roundStartGoldBonus > 0) {
       this._gold += roundStartGoldBonus;
       this.time.delayedCall(300, () => {
+        this.updateGoldDisplay();
         this.showMessage(`💰 财神: +${roundStartGoldBonus}金币!`, '#ffd700');
       });
     }
@@ -664,13 +680,19 @@ export class GameScene extends Phaser.Scene {
       tiles: [...selectedTiles]
     });
 
-    // Show meld animation
-    this.showMessage(`${this.getMeldName(meldType)} ×${meld.multiplier}`, '#00ff00');
+    // Add gold reward for meld
+    const meldGoldReward = MELD_GOLD_REWARDS[meldType];
+    this._gold += meldGoldReward;
+    this.updateGoldDisplay();
+
+    // Show meld animation with gold reward
+    this.showMessage(`${this.getMeldName(meldType)} ×${meld.multiplier} +${meldGoldReward}💰`, '#00ff00');
 
     // Apply gold bonus from 招财猫 god tile
     const meldGoldBonus = this._godTileManager.getMeldGoldBonus();
     if (meldGoldBonus > 0) {
       this._gold += meldGoldBonus;
+      this.updateGoldDisplay();
       this.showMessage(`招财猫: +${meldGoldBonus}金币!`, '#ffd700');
     }
 
@@ -807,10 +829,20 @@ export class GameScene extends Phaser.Scene {
     this._currentScore += scoreBreakdown.finalScore;
     this._gold += scoreBreakdown.totalGold;
 
+    // Apply unused discard bonus (+5 gold per unused discard)
+    const unusedDiscardBonus = this._discardsRemaining * UNUSED_DISCARD_GOLD_BONUS;
+    if (unusedDiscardBonus > 0) {
+      this._gold += unusedDiscardBonus;
+      this.showMessage(`剩余弃牌奖励: +${unusedDiscardBonus}💰 (${this._discardsRemaining}×${UNUSED_DISCARD_GOLD_BONUS})`, '#ffd700');
+    }
+
     // Apply deck variant gold bonus
     if (this._deckVariant.scoringModifier?.goldBonus) {
       this._gold += this._deckVariant.scoringModifier.goldBonus;
     }
+    
+    // Update gold display
+    this.updateGoldDisplay();
 
     // Track stats
     this._totalFansFormed += evalResult.fans.length;
@@ -870,7 +902,14 @@ export class GameScene extends Phaser.Scene {
     this._handsRemaining--;
     this._currentScore += finalScore;
 
-    this.showMessage(`屁胡! +${finalScore}分 (基础50分 × ${this._meldMultiplier}倍)`, '#ffaa00');
+    // Apply unused discard bonus (+5 gold per unused discard)
+    const unusedDiscardBonus = this._discardsRemaining * UNUSED_DISCARD_GOLD_BONUS;
+    if (unusedDiscardBonus > 0) {
+      this._gold += unusedDiscardBonus;
+      this.updateGoldDisplay();
+    }
+
+    this.showMessage(`屁胡! +${finalScore}分 (基础50分 × ${this._meldMultiplier}倍)${unusedDiscardBonus > 0 ? ` +${unusedDiscardBonus}💰` : ''}`, '#ffaa00');
 
     // Update UI
     this.updateScoreDisplay();
@@ -914,6 +953,7 @@ export class GameScene extends Phaser.Scene {
     if (discardGoldBonus > 0) {
       const totalBonus = discardGoldBonus * selectedTiles.length;
       this._gold += totalBonus;
+      this.updateGoldDisplay();
       this.showMessage(`金蟾: +${totalBonus}金币!`, '#ffd700');
     }
     
@@ -1172,6 +1212,19 @@ export class GameScene extends Phaser.Scene {
 
   private updateDrawPileCount(): void {
     this._drawPileCountText.setText(`牌堆: ${this._drawPile.length}`);
+  }
+
+  private updateGoldDisplay(): void {
+    this._goldText.setText(`金币: ${this._gold}`);
+    
+    // Flash effect when gold changes
+    this.tweens.add({
+      targets: this._goldText,
+      scale: 1.2,
+      duration: 100,
+      yoyo: true,
+      ease: 'Power2.Out'
+    });
   }
 
   private showScorePopup(breakdown: ScoreBreakdown, fans: Fan[]): void {
