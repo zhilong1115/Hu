@@ -1,6 +1,12 @@
 import { GodTile, GodTileRarity } from './GodTile';
 import { FlowerCard, FlowerCardType } from './FlowerCard';
-import { ALL_LEGACY_GOD_TILES, GodTileDataEntry } from '../data/godTilesLegacy';
+import { 
+  ALL_GOD_TILES, 
+  GodTile as NewGodTileData, 
+  GodTileRarity as NewGodTileRarity,
+  getPurchasableGodTiles,
+  getGodTilesByRarity 
+} from '../data/godTiles';
 import { ALL_FLOWER_CARDS, FlowerCardData, createFlowerCardFromData } from '../data/flowerCards';
 
 export interface ShopItem {
@@ -100,30 +106,37 @@ export class Shop {
   }
 
   private createGodTileItem(): ShopItem {
-    // Weight rarities: 60% common, 25% rare, 12% epic, 3% legendary
+    // Weight rarities: 50% green, 30% blue, 15% purple, 5% gold
+    // (matches the new god tile design doc)
     const rand = Math.random();
-    let rarity: GodTileRarity;
+    let newRarity: NewGodTileRarity;
 
-    if (rand < 0.60) {
-      rarity = GodTileRarity.COMMON;
-    } else if (rand < 0.85) {
-      rarity = GodTileRarity.RARE;
-    } else if (rand < 0.97) {
-      rarity = GodTileRarity.EPIC;
+    if (rand < 0.50) {
+      newRarity = NewGodTileRarity.GREEN;
+    } else if (rand < 0.80) {
+      newRarity = NewGodTileRarity.BLUE;
+    } else if (rand < 0.95) {
+      newRarity = NewGodTileRarity.PURPLE;
     } else {
-      rarity = GodTileRarity.LEGENDARY;
+      newRarity = NewGodTileRarity.GOLD;
     }
 
-    // Pick random god tile of that rarity
-    const tilesOfRarity = ALL_LEGACY_GOD_TILES.filter(t => t.rarity === rarity);
-    const tileData = tilesOfRarity[Math.floor(Math.random() * tilesOfRarity.length)];
-    const godTile = new GodTile(tileData);
+    // Get purchasable tiles of that rarity (excludes auto-unlock gold tiles)
+    const purchasable = getPurchasableGodTiles();
+    const tilesOfRarity = purchasable.filter(t => t.rarity === newRarity);
+    
+    // Fallback to any purchasable tile if no tiles of that rarity
+    const availableTiles = tilesOfRarity.length > 0 ? tilesOfRarity : purchasable;
+    const tileData = availableTiles[Math.floor(Math.random() * availableTiles.length)];
+    
+    // Create GodTile instance from new format
+    const godTile = GodTile.fromNewFormat(tileData);
 
     return {
       id: godTile.id,
       type: 'god_tile',
       item: godTile,
-      cost: tileData.cost,
+      cost: tileData.price,
       available: true
     };
   }
