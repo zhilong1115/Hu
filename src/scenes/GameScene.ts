@@ -602,7 +602,7 @@ export class GameScene extends Phaser.Scene {
         this.time.delayedCall(500, () => this.declareWin());
       }
     } else if (this._playedMelds.length === 0 && this._hand.tiles.length === 14) {
-      if (FanEvaluator.isWinningHand(this._hand.tiles)) {
+      if (FanEvaluator.isWinningHand([...this._hand.tiles])) {
         this.showMessage('可以胡牌！', '#ffd700');
       }
     }
@@ -727,9 +727,10 @@ export class GameScene extends Phaser.Scene {
     this.showMessage(`屁胡！+${chickenScore}分`, '#ffaa00');
     
     // Create minimal score breakdown
+    const chickenFan: Fan = { name: '屁胡', points: 1, description: '未成番，基础分' };
     const breakdown: ScoreBreakdown = {
-      hand: this._hand.tiles,
-      detectedFans: [{ name: '屁胡', points: 1, description: '未成番，基础分' }],
+      hand: [...this._hand.tiles],
+      detectedFans: [chickenFan],
       activeGodTiles: this._activeGodTiles,
       fanContributions: [],
       baseChips: this.BASE_CHICKEN_SCORE,
@@ -746,7 +747,7 @@ export class GameScene extends Phaser.Scene {
     };
     
     this.time.delayedCall(300, () => {
-      this.showScorePopup(breakdown, ['屁胡']);
+      this.showScorePopup(breakdown, [chickenFan]);
     });
     
     this.updateScoreDisplay();

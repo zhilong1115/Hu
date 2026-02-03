@@ -466,13 +466,13 @@ export const EPIC_GOD_TILES_EXTRA: GodTileDataEntry[] = [
   }
 ];
 
-// Additional Legendary God Tile
+// Additional Legendary God Tiles
 export const LEGENDARY_GOD_TILES_EXTRA: GodTileDataEntry[] = [
   {
     baseTile: { suit: TileSuit.Dragon, value: DragonValue.Red },
     rarity: GodTileRarity.LEGENDARY,
     displayName: '红中至尊',
-    cost: 30,  // Increased from 28
+    cost: 30,
     effects: [
       {
         name: '至尊之力',
@@ -482,7 +482,7 @@ export const LEGENDARY_GOD_TILES_EXTRA: GodTileDataEntry[] = [
           if (dragonCount > 0) {
             context.chipModifiers.push({
               source: '红中至尊',
-              amount: dragonCount * 25,  // Buffed from 20
+              amount: dragonCount * 25,
               description: `至尊之力 (${dragonCount}张)`
             });
           }
@@ -490,15 +490,86 @@ export const LEGENDARY_GOD_TILES_EXTRA: GodTileDataEntry[] = [
       },
       {
         name: '红色传说',
-        description: '字一色番型额外+12番',  // Buffed from +10
+        description: '字一色番型额外+12番',
         activate: (context: GodTileEffectContext) => {
           if (hasFanWithName(context, '字一色')) {
             context.multModifiers.push({
               source: '红中至尊',
-              amount: 12,  // Buffed from 10
+              amount: 12,
               description: '红色传说'
             });
           }
+        }
+      }
+    ]
+  },
+  // 💰 财运羁绊 - 点金手
+  {
+    baseTile: { suit: TileSuit.Wan, value: 8 },
+    rarity: GodTileRarity.LEGENDARY,
+    displayName: '点金手',
+    cost: 65,
+    effects: [
+      {
+        name: '化腐朽为金',
+        description: '所有打出的牌自动变金牌材质',
+        activate: (context: GodTileEffectContext) => {
+          // Gold material effect - massive chip bonus representing gold tiles
+          const tileCount = context.hand.length;
+          context.chipModifiers.push({
+            source: '点金手',
+            amount: tileCount * 15,
+            description: `化腐朽为金 (${tileCount}张)`
+          });
+        }
+      },
+      {
+        name: '金光闪闪',
+        description: '胡牌金币获取×6',
+        activate: (context: GodTileEffectContext) => {
+          // Multiply gold by 6 (add 5x the current gold)
+          const baseGold = context.goldModifiers.reduce((sum, m) => sum + m.amount, 0);
+          const bonusGold = Math.max(baseGold * 5, 10); // At least +10 gold
+          context.goldModifiers.push({
+            source: '点金手',
+            amount: bonusGold,
+            description: '金光闪闪 (×6金币)'
+          });
+        }
+      }
+    ]
+  },
+  // 🔄 转化羁绊 - 时间领主
+  {
+    baseTile: { suit: TileSuit.Wind, value: WindValue.West },
+    rarity: GodTileRarity.LEGENDARY,
+    displayName: '时间领主',
+    cost: 75,
+    effects: [
+      {
+        name: '时间倒流',
+        description: '每回合可悔棋1次（撤销上一步操作）',
+        activate: (context: GodTileEffectContext) => {
+          // Undo effect is handled at game logic level
+          // Here we provide a strategic bonus for having control
+          context.chipModifiers.push({
+            source: '时间领主',
+            amount: 80,
+            description: '时间掌控者'
+          });
+        }
+      },
+      {
+        name: '命运重塑',
+        description: '弃牌时可将弃掉的牌放回牌库任意位置',
+        activate: (context: GodTileEffectContext) => {
+          // Transformation synergy - bonus for each discard-related action
+          // Represented as mult bonus for strategic control
+          context.multModifiers.push({
+            source: '时间领主',
+            amount: 5,
+            description: '命运重塑'
+          });
         }
       }
     ]
