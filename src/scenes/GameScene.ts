@@ -9,6 +9,7 @@ import { ScorePopup } from '../ui/ScorePopup';
 import { GodTileDisplay } from '../ui/GodTileDisplay';
 import { FlowerCardDisplay } from '../ui/FlowerCardDisplay';
 import { ScreenEffects } from '../ui/ScreenEffects';
+import { BondStatusUI } from '../ui/BondStatusUI';
 import { GodTile } from '../roguelike/GodTile';
 import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
@@ -16,6 +17,9 @@ import { COMMON_GOD_TILES, RARE_GOD_TILES } from '../data/godTilesLegacy';
 import { ALL_FLOWER_CARDS, createFlowerCardFromData } from '../data/flowerCards';
 import { DeckVariant, DECK_VARIANTS, isRedDoraTile, getRedDoraChipBonus } from '../core/DeckVariant';
 import { AudioManager } from '../audio/AudioManager';
+import { GodTileManager } from '../core/GodTileManager';
+import { GodTileBond, getGodTileById } from '../data/godTiles';
+import { Material } from '../data/materials';
 
 /**
  * MeldType — Types of melds player can declare
@@ -56,6 +60,10 @@ export class GameScene extends Phaser.Scene {
   private _scorePopup!: ScorePopup;
   private _godTileDisplay!: GodTileDisplay;
   private _flowerCardDisplay!: FlowerCardDisplay;
+  private _bondStatusUI!: BondStatusUI;
+  
+  // New God Tile Manager (bond system)
+  private _godTileManager!: GodTileManager;
 
   // Meld display container
   private _meldDisplayContainer!: Phaser.GameObjects.Container;
@@ -117,6 +125,7 @@ export class GameScene extends Phaser.Scene {
     totalFansFormed?: number;
     totalGodTilesCollected?: number;
     deckVariant?: DeckVariant;
+    godTileManager?: GodTileManager;
   }) {
     // Initialize from passed data (from shop scene)
     this._roundNumber = data?.roundNumber ?? 1;
@@ -125,7 +134,18 @@ export class GameScene extends Phaser.Scene {
     this._totalGodTilesCollected = data?.totalGodTilesCollected ?? 0;
     this._deckVariant = data?.deckVariant ?? DECK_VARIANTS.standard;
 
-    // For testing: add some starter God Tiles if none provided
+    // Initialize GodTileManager (new bond system)
+    if (data?.godTileManager) {
+      this._godTileManager = data.godTileManager;
+    } else {
+      this._godTileManager = new GodTileManager();
+      // For testing: add some starter god tiles
+      this._godTileManager.addGodTileById('gamble_beginner_luck');
+      this._godTileManager.addGodTileById('gamble_muddy_waters');
+      this._godTileManager.addGodTileById('wealth_lucky_cat');
+    }
+
+    // For testing: add some starter God Tiles if none provided (legacy)
     if (data?.activeGodTiles) {
       this._activeGodTiles = data.activeGodTiles;
     } else {
@@ -248,6 +268,9 @@ export class GameScene extends Phaser.Scene {
       color: '#aaaaaa'
     }).setOrigin(1, 0.5);
 
+    // ── Bond Status UI (top-left) ──
+    this._bondStatusUI = new BondStatusUI(this, 20, headerY + 120, this._godTileManager);
+    
     // ── Played Melds display (above hand) ──
     const meldDisplayY = height * 0.28;
     this._meldDisplayContainer = this.add.container(centerX, meldDisplayY);
@@ -623,20 +646,51 @@ export class GameScene extends Phaser.Scene {
     // Show meld animation
     this.showMessage(`${this.getMeldName(meldType)} ×${meld.multiplier}`, '#00ff00');
 
+    // Apply gold bonus from 招财猫 god tile
+    const meldGoldBonus = this._godTileManager.getMeldGoldBonus();
+    if (meldGoldBonus > 0) {
+      this._gold += meldGoldBonus;
+      this.showMessage(`招财猫: +${meldGoldBonus}金币!`, '#ffd700');
+    }
+
     // Update displays
     this._handDisplay.updateDisplay();
     this.updateMeldDisplay();
     this.updateMeldMultiplierDisplay();
     this.updateButtonStates();
+    
+    // Update bond status UI
+    this._bondStatusUI.updateDisplay();
 
-    // Show flower card selection
-    const flowerCount = this.getMeldFlowerCount(meldType);
+    // Show flower card selection with potential extra choices from god tiles
+    let flowerCount = this.getMeldFlowerCount(meldType);
+    flowerCount += this._godTileManager.getExtraFlowerCardChoices();
     await this.showFlowerCardSelection(flowerCount, meldType === 'kong');
 
     // TODO: For Kong, also give a season card
     if (meldType === 'kong') {
       this.showMessage('获得季节牌! (待实现)', '#ffd700');
     }
+    
+    // Vision bond Lv1 effect: reveal top 2 deck cards after meld
+    const visibleCount = this._godTileManager.getVisibleTilesAfterMeld();
+    if (visibleCount > 0 && visibleCount < Infinity) {
+      this.revealTopDeckTiles(visibleCount);
+    }
+  }
+  
+  /**
+   * Reveal top N tiles from the deck (Vision bond effect)
+   */
+  private revealTopDeckTiles(count: number): void {
+    if (this._drawPile.length === 0) return;
+    
+    const tilesToReveal = this._drawPile.slice(-Math.min(count, this._drawPile.length));
+    const tileNames = tilesToReveal.map(t => t.displayName).join(', ');
+    
+    this.showMessage(`👁️ 洞察: 牌堆顶 ${tilesToReveal.length}张 → ${tileNames}`, '#00ccff');
+    
+    // TODO: Add visual indicator for revealed tiles in deck
   }
 
   /**
@@ -674,18 +728,21 @@ export class GameScene extends Phaser.Scene {
     // Play fan announce sound
     AudioManager.getInstance().playSFX('fanAnnounce');
 
-    // Calculate score with God Tiles and meld multiplier
-    let scoreBreakdown = Scoring.calculateScore(
+    // Calculate score with bonds integration
+    let scoreBreakdownWithBonds = Scoring.calculateScoreWithBonds(
       allTiles as Tile[],
       evalResult.fans,
       this._activeGodTiles,
-      {},
+      this._godTileManager,
+      {
+        gold: this._gold,
+        meldMultiplier: this._meldMultiplier
+      },
       evalResult.decomposition
     );
 
-    // Apply meld multiplier
-    let finalChips = scoreBreakdown.totalChips;
-    let finalMult = scoreBreakdown.totalMult * this._meldMultiplier;
+    let finalChips = scoreBreakdownWithBonds.totalChips;
+    let finalMult = scoreBreakdownWithBonds.totalMult;
 
     // Apply Red Dora bonuses (if using Red Dora deck)
     let redDoraBonus = 0;
@@ -706,12 +763,23 @@ export class GameScene extends Phaser.Scene {
 
     // Recalculate final score with modifiers
     const modifiedScore = Math.floor(finalChips * finalMult);
-    scoreBreakdown = {
-      ...scoreBreakdown,
+    let scoreBreakdown: ScoreBreakdown = {
+      ...scoreBreakdownWithBonds,
       totalChips: finalChips,
       totalMult: finalMult,
       finalScore: modifiedScore
     };
+    
+    // Log bond effects if any
+    if (scoreBreakdownWithBonds.bondEffects.length > 0) {
+      console.log('Bond effects applied:', scoreBreakdownWithBonds.bondEffects);
+    }
+    
+    // Show roulette animation if applicable
+    if (scoreBreakdownWithBonds.rouletteResult) {
+      const r = scoreBreakdownWithBonds.rouletteResult;
+      this.showMessage(`🎲 赌神轮盘: ${r.operation}${r.value}!`, '#ffd700');
+    }
 
     // Deduct a hand
     this._handsRemaining--;
@@ -819,13 +887,34 @@ export class GameScene extends Phaser.Scene {
 
     // Add to discard pile
     this._discardPile.push(...selectedTiles);
+    
+    // Apply gold bonus from 金蟾 god tile
+    const discardGoldBonus = this._godTileManager.getDiscardGoldBonus();
+    if (discardGoldBonus > 0) {
+      const totalBonus = discardGoldBonus * selectedTiles.length;
+      this._gold += totalBonus;
+      this.showMessage(`金蟾: +${totalBonus}金币!`, '#ffd700');
+    }
+    
+    // Gamble bond: 浑水摸鱼 - 20% chance to draw 2 extra tiles to choose from
+    let extraDraws = 0;
+    if (this._godTileManager.hasGodTile('gamble_muddy_waters')) {
+      const { success } = this._godTileManager.rollProbability(0.2);
+      if (success) {
+        extraDraws = 2;
+        this.showMessage('🎲 浑水摸鱼: 多摸2张!', '#00ff00');
+      }
+    }
 
     // Draw new tiles
-    const tilesToDraw = Math.min(selectedTiles.length, this._drawPile.length);
+    const tilesToDraw = Math.min(selectedTiles.length + extraDraws, this._drawPile.length);
     for (let i = 0; i < tilesToDraw; i++) {
       const tile = this._drawPile.pop()!;
       this._hand.addTile(tile);
     }
+    
+    // If we drew extra tiles, player needs to discard the extras
+    // (For now, just add them all - could add a selection UI later)
 
     // Deduct discard
     this._discardsRemaining--;
@@ -836,6 +925,7 @@ export class GameScene extends Phaser.Scene {
     this.updateDiscardsRemaining();
     this.updateDrawPileCount();
     this.updateButtonStates();
+    this._bondStatusUI.updateDisplay();
   }
 
   /* ── Flower Card Actions ───────────────────────────────────── */
@@ -1150,7 +1240,8 @@ export class GameScene extends Phaser.Scene {
                 activeGodTiles: this._activeGodTiles,
                 gold: this._gold,
                 flowerCardManager: this._flowerCardManager,
-                deckVariant: this._deckVariant
+                deckVariant: this._deckVariant,
+                godTileManager: this._godTileManager
               });
             } else {
               // Transition to shop scene
@@ -1162,7 +1253,8 @@ export class GameScene extends Phaser.Scene {
                 flowerCardManager: this._flowerCardManager,
                 totalFansFormed: this._totalFansFormed,
                 totalGodTilesCollected: this._totalGodTilesCollected,
-                deckVariant: this._deckVariant
+                deckVariant: this._deckVariant,
+                godTileManager: this._godTileManager
               });
             }
           });

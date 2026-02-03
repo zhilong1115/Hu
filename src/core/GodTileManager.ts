@@ -328,6 +328,242 @@ export class GodTileManager {
     return this.getBondLevel(GodTileBond.VISION) >= 2;
   }
   
+  // ─── Scoring Integration ─────────────────────────────────────────────────
+  
+  /**
+   * Calculate all bond-based scoring bonuses for hu
+   * Returns additive mult bonus and multiplicative mult bonus
+   */
+  calculateBondScoringBonus(context: {
+    gold: number;
+    materialTileCount: number;
+  }): { 
+    additiveMult: number; 
+    multiplicativeMult: number;
+    description: string[];
+  } {
+    let additiveMult = 0;
+    let multiplicativeMult = 1;
+    const descriptions: string[] = [];
+    
+    // Wealth Bond (财运)
+    const wealthLevel = this.getBondLevel(GodTileBond.WEALTH);
+    if (wealthLevel === 1) {
+      // 每 50金币 → +1倍率
+      const bonus = Math.floor(context.gold / 50);
+      if (bonus > 0) {
+        additiveMult += bonus;
+        descriptions.push(`财源广进: ${context.gold}金币 → +${bonus}倍率`);
+      }
+    } else if (wealthLevel === 2) {
+      // 每 30金币 → +1倍率
+      const bonus = Math.floor(context.gold / 30);
+      if (bonus > 0) {
+        additiveMult += bonus;
+        descriptions.push(`点石成金: ${context.gold}金币 → +${bonus}倍率`);
+      }
+    } else if (wealthLevel >= 3) {
+      // 每 20金币 → ×1.5倍率
+      const stacks = Math.floor(context.gold / 20);
+      if (stacks > 0) {
+        const mult = Math.pow(1.5, stacks);
+        multiplicativeMult *= mult;
+        descriptions.push(`富可敌国: ${context.gold}金币 → ×${mult.toFixed(2)}倍率`);
+      }
+    }
+    
+    // Transform Bond (转化)
+    const transformLevel = this.getBondLevel(GodTileBond.TRANSFORM);
+    if (transformLevel === 1) {
+      // 每张材质牌 → +1倍率
+      if (context.materialTileCount > 0) {
+        additiveMult += context.materialTileCount;
+        descriptions.push(`偷天换日: ${context.materialTileCount}张材质牌 → +${context.materialTileCount}倍率`);
+      }
+    } else if (transformLevel === 2) {
+      // 每张材质牌 → +2倍率
+      if (context.materialTileCount > 0) {
+        const bonus = context.materialTileCount * 2;
+        additiveMult += bonus;
+        descriptions.push(`造物主: ${context.materialTileCount}张材质牌 → +${bonus}倍率`);
+      }
+    } else if (transformLevel >= 3) {
+      // 每张材质牌 → ×1.5倍率
+      if (context.materialTileCount > 0) {
+        const mult = Math.pow(1.5, context.materialTileCount);
+        multiplicativeMult *= mult;
+        descriptions.push(`万象归一: ${context.materialTileCount}张材质牌 → ×${mult.toFixed(2)}倍率`);
+      }
+    }
+    
+    // 福禄寿 special effect (gold > 200 → all mult ×2)
+    if (this.hasThreeStarsBonus(context.gold)) {
+      multiplicativeMult *= 2;
+      descriptions.push(`福禄寿: 金币>${context.gold} → 全部倍率×2`);
+    }
+    
+    return { additiveMult, multiplicativeMult, description: descriptions };
+  }
+  
+  /**
+   * Apply Gamble bond Lv3 roulette effect
+   * Returns a multiplier result: { operation: '+' | '-' | '×', value: 1 | 3 | 5 | 9 }
+   */
+  rollGambleRoulette(): { operation: '+' | '-' | '×'; value: number; resultMult: number } | null {
+    const level = this.getBondLevel(GodTileBond.GAMBLE);
+    if (level < 3) return null;
+    
+    const operations: ('+' | '-' | '×')[] = ['+', '-', '×'];
+    const values = [1, 3, 5, 9];
+    
+    const operation = operations[Math.floor(Math.random() * operations.length)];
+    const value = values[Math.floor(Math.random() * values.length)];
+    
+    let resultMult = 1;
+    switch (operation) {
+      case '+':
+        // +value to multiplier (we return it as a multiplier effect)
+        // This will be applied as additive mult
+        resultMult = value; // Will be added
+        break;
+      case '-':
+        // -value from multiplier
+        resultMult = -value; // Will be subtracted
+        break;
+      case '×':
+        // ×value to score
+        resultMult = value; // Will multiply final score
+        break;
+    }
+    
+    return { operation, value, resultMult };
+  }
+  
+  /**
+   * Check if should show roulette on score settlement
+   */
+  shouldShowRoulette(): boolean {
+    return this.getBondLevel(GodTileBond.GAMBLE) >= 3;
+  }
+  
+  /**
+   * Get the number of visible deck tiles to reveal after a meld
+   * Vision bond Lv1: 2 tiles visible after each meld
+   */
+  getVisibleTilesAfterMeld(): number {
+    const level = this.getBondLevel(GodTileBond.VISION);
+    if (level >= 3) {
+      return Infinity; // All visible
+    }
+    if (level >= 1) {
+      return 2;
+    }
+    return 0;
+  }
+  
+  /**
+   * Check if entire deck should be visible
+   */
+  isFullDeckVisible(): boolean {
+    return this.getBondLevel(GodTileBond.VISION) >= 3;
+  }
+  
+  /**
+   * Get the number of extra flower cards to show during selection
+   * Based on god tile effects
+   */
+  getExtraFlowerCardChoices(): number {
+    let extra = 0;
+    
+    // 灵光一闪: 抽花牌时，额外多看 1张 再选
+    if (this.hasGodTile('vision_inspiration')) {
+      extra += 1;
+    }
+    
+    return extra;
+  }
+  
+  /**
+   * Get gold bonus on meld (from 招财猫)
+   */
+  getMeldGoldBonus(): number {
+    if (this.hasGodTile('wealth_lucky_cat')) {
+      return 8;
+    }
+    return 0;
+  }
+  
+  /**
+   * Get gold bonus per discarded tile (from 金蟾)
+   */
+  getDiscardGoldBonus(): number {
+    if (this.hasGodTile('wealth_golden_toad')) {
+      return 3;
+    }
+    return 0;
+  }
+  
+  /**
+   * Calculate round start gold bonus (from 财神)
+   */
+  getRoundStartGoldBonus(): number {
+    if (this.hasGodTile('wealth_god_of_wealth')) {
+      return 15;
+    }
+    return 0;
+  }
+  
+  /**
+   * Get gold earned at round end (from various god tiles)
+   */
+  calculateRoundEndGold(context: {
+    currentGold: number;
+    flowerCardCount: number;
+  }): { gold: number; descriptions: string[] } {
+    let gold = 0;
+    const descriptions: string[] = [];
+    
+    // 聚宝盆: 回合结束时，获得 当前金币10% 的额外金币
+    if (this.hasGodTile('wealth_treasure_bowl')) {
+      const bonus = Math.floor(context.currentGold * 0.1);
+      gold += bonus;
+      if (bonus > 0) {
+        descriptions.push(`聚宝盆: +${bonus}金币 (${context.currentGold}的10%)`);
+      }
+    }
+    
+    // 摇钱树: 每持有1张花牌，回合结束 +5金币
+    if (this.hasGodTile('wealth_money_tree')) {
+      const bonus = context.flowerCardCount * 5;
+      gold += bonus;
+      if (bonus > 0) {
+        descriptions.push(`摇钱树: +${bonus}金币 (${context.flowerCardCount}张花牌×5)`);
+      }
+    }
+    
+    // 财运亨通: 回合结束 50% +15金币，失败-5金币
+    if (this.hasGodTile('gamble_fortune_flow')) {
+      const { success } = this.rollProbability(0.5);
+      if (success || this.isNegativeBlocked()) {
+        gold += 15;
+        descriptions.push(`财运亨通: +15金币 (成功!)`);
+      } else {
+        gold -= 5;
+        descriptions.push(`财运亨通: -5金币 (失败)`);
+      }
+    }
+    
+    // Apply 貔貅 modifier
+    const gainMult = this.getGoldGainMultiplier();
+    if (gainMult > 1 && gold > 0) {
+      const originalGold = gold;
+      gold = Math.floor(gold * gainMult);
+      descriptions.push(`貔貅: 金币+50% (${originalGold} → ${gold})`);
+    }
+    
+    return { gold, descriptions };
+  }
+  
   // ─── Serialization ───────────────────────────────────────────────────────
   
   /** Export state for saving */

@@ -1,6 +1,8 @@
 import { Tile } from './Tile';
 import { Fan, HandDecomposition } from './FanEvaluator';
 import { GodTile, GodTileEffectContext } from '../roguelike/GodTile';
+import { GodTileManager } from './GodTileManager';
+import { Material } from '../data/materials';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -329,5 +331,108 @@ export class Scoring {
    */
   public static isWinningScore(breakdown: ScoreBreakdown, threshold: number = 100): boolean {
     return breakdown.finalScore >= threshold;
+  }
+  
+  /**
+   * Calculate score with full bond integration
+   * This is the enhanced scoring that includes bond effects from the new GodTileManager
+   */
+  public static calculateScoreWithBonds(
+    hand: Tile[],
+    detectedFans: Fan[],
+    activeGodTiles: GodTile[] = [],
+    godTileManager: GodTileManager | null = null,
+    options: ScoringOptions & {
+      gold?: number;
+      meldMultiplier?: number;
+    } = {},
+    decomposition?: HandDecomposition | null
+  ): ScoreBreakdown & { 
+    bondEffects: string[];
+    rouletteResult?: { operation: '+' | '-' | '×'; value: number } | null;
+  } {
+    // Get base score breakdown
+    const baseBreakdown = this.calculateScore(hand, detectedFans, activeGodTiles, options, decomposition);
+    
+    const bondEffects: string[] = [];
+    let rouletteResult: { operation: '+' | '-' | '×'; value: number } | null = null;
+    
+    // If no GodTileManager, return base breakdown
+    if (!godTileManager) {
+      return { ...baseBreakdown, bondEffects, rouletteResult };
+    }
+    
+    // Count material tiles in the hand
+    const materialTileCount = hand.filter(t => t.material && t.material !== Material.NONE).length;
+    
+    // Calculate bond scoring bonuses
+    const bondBonus = godTileManager.calculateBondScoringBonus({
+      gold: options.gold ?? 0,
+      materialTileCount
+    });
+    
+    bondEffects.push(...bondBonus.description);
+    
+    // Apply bond bonuses to totals
+    let totalChips = baseBreakdown.totalChips;
+    let totalMult = baseBreakdown.totalMult + bondBonus.additiveMult;
+    
+    // Apply multiplicative mult from bonds
+    totalMult *= bondBonus.multiplicativeMult;
+    
+    // Apply meld multiplier if provided
+    if (options.meldMultiplier && options.meldMultiplier > 1) {
+      totalMult *= options.meldMultiplier;
+      bondEffects.push(`出牌倍率: ×${options.meldMultiplier}`);
+    }
+    
+    // Calculate score before roulette
+    let finalScore = Math.floor(totalChips * totalMult);
+    
+    // Check for Gamble Lv3 roulette
+    if (godTileManager.shouldShowRoulette()) {
+      const roulette = godTileManager.rollGambleRoulette();
+      if (roulette) {
+        rouletteResult = { operation: roulette.operation, value: roulette.value };
+        
+        switch (roulette.operation) {
+          case '+':
+            totalMult += roulette.value;
+            bondEffects.push(`🎲 赌神轮盘: +${roulette.value}倍率`);
+            break;
+          case '-':
+            totalMult = Math.max(1, totalMult - roulette.value);
+            bondEffects.push(`🎲 赌神轮盘: -${roulette.value}倍率`);
+            break;
+          case '×':
+            finalScore = Math.floor(totalChips * totalMult * roulette.value);
+            bondEffects.push(`🎲 赌神轮盘: ×${roulette.value}分数`);
+            break;
+        }
+        
+        // Recalculate if not multiplication (which was already applied)
+        if (roulette.operation !== '×') {
+          finalScore = Math.floor(totalChips * totalMult);
+        }
+      }
+    }
+    
+    // Add bond modifiers to the breakdown
+    const bondMultModifiers: MultModifier[] = bondBonus.description.map((desc, i) => ({
+      source: `羁绊效果 ${i + 1}`,
+      multAdded: bondBonus.additiveMult > 0 ? bondBonus.additiveMult : undefined,
+      multMultiplier: bondBonus.multiplicativeMult > 1 ? bondBonus.multiplicativeMult : undefined,
+      description: desc
+    }));
+    
+    return {
+      ...baseBreakdown,
+      totalChips,
+      totalMult,
+      finalScore,
+      multModifiers: [...baseBreakdown.multModifiers, ...bondMultModifiers],
+      bondEffects,
+      rouletteResult
+    };
   }
 }
