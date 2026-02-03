@@ -13,7 +13,6 @@ import { BondStatusUI } from '../ui/BondStatusUI';
 import { GodTile } from '../roguelike/GodTile';
 import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
-import { COMMON_GOD_TILES, RARE_GOD_TILES } from '../data/godTilesLegacy';
 import { ALL_FLOWER_CARDS, createFlowerCardFromData } from '../data/flowerCards';
 import { DeckVariant, DECK_VARIANTS, isRedDoraTile, getRedDoraChipBonus } from '../core/DeckVariant';
 import { AudioManager } from '../audio/AudioManager';
@@ -149,27 +148,11 @@ export class GameScene extends Phaser.Scene {
     this._totalGodTilesCollected = data?.totalGodTilesCollected ?? 0;
     this._deckVariant = data?.deckVariant ?? DECK_VARIANTS.standard;
 
-    // Initialize GodTileManager (new bond system)
-    if (data?.godTileManager) {
-      this._godTileManager = data.godTileManager;
-    } else {
-      this._godTileManager = new GodTileManager();
-      // For testing: add some starter god tiles
-      this._godTileManager.addGodTileById('gamble_beginner_luck');
-      this._godTileManager.addGodTileById('gamble_muddy_waters');
-      this._godTileManager.addGodTileById('wealth_lucky_cat');
-    }
+    // Initialize GodTileManager (new bond system) - players start with none, buy from shop
+    this._godTileManager = data?.godTileManager ?? new GodTileManager();
 
-    // For testing: add some starter God Tiles if none provided (legacy)
-    if (data?.activeGodTiles) {
-      this._activeGodTiles = data.activeGodTiles;
-    } else {
-      // Add a few test God Tiles for demonstration
-      this._activeGodTiles = [
-        new GodTile(COMMON_GOD_TILES[0]), // 财神一万
-        new GodTile(RARE_GOD_TILES[0])    // 东风神牌
-      ];
-    }
+    // Initialize god tiles from data (players start with none, buy from shop)
+    this._activeGodTiles = data?.activeGodTiles ?? [];
 
     // Initialize Flower Card Manager
     if (data?.flowerCardManager) {
