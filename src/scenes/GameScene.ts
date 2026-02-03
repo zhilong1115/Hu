@@ -736,14 +736,20 @@ export class GameScene extends Phaser.Scene {
   private onHuClicked(): void {
     // Must have a proper hand structure to hu
     // With melds, hand tiles + meld tiles should form a valid pattern
+    
+    // Calculate expected total tiles based on melds
+    // Standard: 4 melds + 1 pair = 14 tiles (no kongs)
+    // Each kong adds 1 extra tile (4 tiles instead of 3)
+    const kongCount = this._playedMelds.filter(m => m.type === 'kong').length;
+    const expectedTiles = 14 + kongCount;
 
-    // Calculate total tiles (hand + melds)
+    // Calculate actual total tiles (hand + melds)
     const handTileCount = this._hand.tiles.length;
     const meldTileCount = this._playedMelds.reduce((sum, m) => sum + m.tiles.length, 0);
     const totalTiles = handTileCount + meldTileCount;
 
-    if (totalTiles !== 14) {
-      this.showMessage(`需要14张牌才能胡! (当前: ${totalTiles}张)`, '#ff4444');
+    if (totalTiles !== expectedTiles) {
+      this.showMessage(`需要${expectedTiles}张牌才能胡! (当前: ${totalTiles}张)`, '#ff4444');
       return;
     }
 
@@ -1072,7 +1078,9 @@ export class GameScene extends Phaser.Scene {
     const hasSelection = selectedTiles.length > 0;
     const meldType = hasSelection ? this.detectMeldType(selectedTiles) : null;
 
-    // Calculate total tiles
+    // Calculate total tiles and expected tiles (accounting for kongs)
+    const kongCount = this._playedMelds.filter(m => m.type === 'kong').length;
+    const expectedTiles = 14 + kongCount;
     const handTileCount = this._hand.tiles.length;
     const meldTileCount = this._playedMelds.reduce((sum, m) => sum + m.tiles.length, 0);
     const totalTiles = handTileCount + meldTileCount;
@@ -1097,8 +1105,8 @@ export class GameScene extends Phaser.Scene {
       this._discardButton.setStyle({ color: '#888888', backgroundColor: '#333333' });
     }
 
-    // 胡! button: enabled if total tiles = 14 and has remaining hands
-    if (totalTiles === 14 && this._handsRemaining > 0) {
+    // 胡! button: enabled if total tiles matches expected (14 + number of kongs)
+    if (totalTiles === expectedTiles && this._handsRemaining > 0) {
       this._huButton.setAlpha(1);
       this._huButton.setStyle({ color: '#ffffff', backgroundColor: '#8B0000' });
     } else {
