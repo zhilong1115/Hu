@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { Round, RoundState } from '../core/Round';
-import { Hand } from '../core/Hand';
+import { Hand, Meld } from '../core/Hand';
 import { FanEvaluator, Fan } from '../core/FanEvaluator';
 import { Scoring, ScoreBreakdown } from '../core/Scoring';
-import { Tile, createFullTileSet, shuffleTiles } from '../core/Tile';
+import { Tile, TileSuit, createFullTileSet, shuffleTiles, isSameTile } from '../core/Tile';
 import { HandDisplay } from '../ui/HandDisplay';
 import { ScorePopup } from '../ui/ScorePopup';
 import { GodTileDisplay } from '../ui/GodTileDisplay';
@@ -18,13 +18,27 @@ import { DeckVariant, DECK_VARIANTS, isRedDoraTile, getRedDoraChipBonus } from '
 import { AudioManager } from '../audio/AudioManager';
 
 /**
+ * MeldType — Types of melds player can declare
+ */
+export type MeldType = 'chow' | 'pong' | 'kong';
+
+/**
+ * PlayedMeld — Stored meld with multiplier info
+ */
+export interface PlayedMeld {
+  type: MeldType;
+  tiles: Tile[];
+  multiplier: number;
+}
+
+/**
  * GameScene — Core gameplay loop for HU!
  *
- * Balatro-style mahjong roguelike gameplay:
- * - Draw/discard tiles to build winning hands
- * - Play hands to score chips × mult
- * - Meet score target to advance to shop
- * - Limited hands and discards per round
+ * HU! Mahjong roguelike gameplay based on GAME_DESIGN.md:
+ * - Start with 14 tiles
+ * - Discard (弃牌) up to 5 times (redraw same count)
+ * - Play melds (出牌: 吃/碰/杠) unlimited times
+ * - Declare hu (胡!) when you have a winning hand
  * - Mobile-first portrait layout with touch controls
  */
 export class GameScene extends Phaser.Scene {
@@ -33,11 +47,18 @@ export class GameScene extends Phaser.Scene {
   private _drawPile: Tile[] = [];
   private _discardPile: Tile[] = [];
 
+  // Played melds (出牌)
+  private _playedMelds: PlayedMeld[] = [];
+  private _meldMultiplier: number = 1; // Cumulative multiplier from melds
+
   // UI components
   private _handDisplay!: HandDisplay;
   private _scorePopup!: ScorePopup;
   private _godTileDisplay!: GodTileDisplay;
   private _flowerCardDisplay!: FlowerCardDisplay;
+
+  // Meld display container
+  private _meldDisplayContainer!: Phaser.GameObjects.Container;
 
   // UI text elements
   private _scoreText!: Phaser.GameObjects.Text;
@@ -45,16 +66,23 @@ export class GameScene extends Phaser.Scene {
   private _handsRemainingText!: Phaser.GameObjects.Text;
   private _discardsRemainingText!: Phaser.GameObjects.Text;
   private _drawPileCountText!: Phaser.GameObjects.Text;
+  private _meldMultiplierText!: Phaser.GameObjects.Text;
+  private _meldInfoText!: Phaser.GameObjects.Text;
 
   // Buttons
-  private _playHandButton!: Phaser.GameObjects.Text;
+  private _playMeldButton!: Phaser.GameObjects.Text;
   private _discardButton!: Phaser.GameObjects.Text;
+  private _huButton!: Phaser.GameObjects.Text;
+
+  // Flower card selection overlay
+  private _flowerSelectionOverlay!: Phaser.GameObjects.Container;
+  private _pendingFlowerCallback: ((card: FlowerCard) => void) | null = null;
 
   // Game state
   private _currentScore: number = 0;
   private _targetScore: number = 1000;
   private _handsRemaining: number = 3;
-  private _discardsRemaining: number = 3;
+  private _discardsRemaining: number = 5;
   private _roundNumber: number = 1;
   private _gold: number = 0;
 
@@ -73,8 +101,8 @@ export class GameScene extends Phaser.Scene {
 
   // Constants
   private readonly INITIAL_HANDS = 3;
-  private readonly INITIAL_DISCARDS = 3;
-  private readonly INITIAL_HAND_SIZE = 13;
+  private readonly INITIAL_DISCARDS = 5; // Updated: 5 discards per GAME_DESIGN.md
+  private readonly INITIAL_HAND_SIZE = 14; // Updated: Start with 14 tiles
 
   constructor() {
     super({ key: 'GameScene' });
@@ -124,6 +152,8 @@ export class GameScene extends Phaser.Scene {
     this._currentScore = 0;
     this._handsRemaining = this.INITIAL_HANDS;
     this._discardsRemaining = this.INITIAL_DISCARDS;
+    this._playedMelds = [];
+    this._meldMultiplier = 1;
 
     // Start gameplay music
     AudioManager.getInstance().playMusic('gameplay');
@@ -204,6 +234,24 @@ export class GameScene extends Phaser.Scene {
       color: '#ffd700'
     }).setOrigin(1, 0.5);
 
+    // ── Meld info display ──
+    const meldInfoY = infoY + 60;
+    this._meldMultiplierText = this.add.text(20, meldInfoY, `出牌倍率: ×${this._meldMultiplier}`, {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '16px',
+      color: '#ff66ff'
+    }).setOrigin(0, 0.5);
+
+    this._meldInfoText = this.add.text(width - 20, meldInfoY, '', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '14px',
+      color: '#aaaaaa'
+    }).setOrigin(1, 0.5);
+
+    // ── Played Melds display (above hand) ──
+    const meldDisplayY = height * 0.28;
+    this._meldDisplayContainer = this.add.container(centerX, meldDisplayY);
+
     // ── God Tiles display (above hand) ──
     const godTileY = height * 0.35;
     this._godTileDisplay = new GodTileDisplay(this, centerX, godTileY);
@@ -221,6 +269,7 @@ export class GameScene extends Phaser.Scene {
     this._handDisplay.on('selectionChanged', (tiles: Tile[]) => {
       AudioManager.getInstance().playSFX('tileClick');
       this.updateButtonStates();
+      this.updateMeldInfo();
     });
 
     // ── Flower Card display (below hand) ──
@@ -235,16 +284,18 @@ export class GameScene extends Phaser.Scene {
 
     // ── Action buttons ──
     const buttonY = height - 100;
-    const buttonGap = 15;
-    const buttonWidth = 80;
+    const buttonGap = 10;
+    const buttonWidth = 70;
 
-    this._playHandButton = this.createButton(
-      centerX - buttonWidth - buttonGap,
+    // 出牌 button (play meld: 吃/碰/杠)
+    this._playMeldButton = this.createButton(
+      centerX - buttonWidth * 1.5 - buttonGap,
       buttonY,
       '出牌',
-      () => this.onPlayHandClicked()
+      () => this.onPlayMeldClicked()
     );
 
+    // 弃牌 button (discard)
     this._discardButton = this.createButton(
       centerX,
       buttonY,
@@ -252,13 +303,23 @@ export class GameScene extends Phaser.Scene {
       () => this.onDiscardClicked()
     );
 
-    // Use Flower Card button
-    const useCardButton = this.createButton(
-      centerX + buttonWidth + buttonGap,
+    // 胡! button (declare win)
+    this._huButton = this.createButton(
+      centerX + buttonWidth * 1.5 + buttonGap,
       buttonY,
+      '胡!',
+      () => this.onHuClicked()
+    );
+    this._huButton.setStyle({ backgroundColor: '#8B0000' }); // Dark red for hu
+
+    // Use Flower Card button (below main buttons)
+    const useCardButton = this.createButton(
+      centerX,
+      buttonY + 50,
       '用花牌',
       () => this.onUseFlowerCardClicked()
     );
+    useCardButton.setStyle({ fontSize: '16px', padding: { x: 15, y: 8 } });
 
     // ── Score popup (hidden initially) ──
     this._scorePopup = new ScorePopup(this, centerX, height / 2);
@@ -266,8 +327,119 @@ export class GameScene extends Phaser.Scene {
       this.checkWinLoseCondition();
     });
 
+    // ── Flower card selection overlay (hidden initially) ──
+    this.createFlowerSelectionOverlay();
+
     // Initial button state update
     this.updateButtonStates();
+  }
+
+  private createFlowerSelectionOverlay(): void {
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+
+    this._flowerSelectionOverlay = this.add.container(centerX, centerY);
+    this._flowerSelectionOverlay.setVisible(false);
+    this._flowerSelectionOverlay.setDepth(1000);
+
+    // Dark background
+    const bg = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.8);
+    bg.setInteractive(); // Block clicks behind
+    this._flowerSelectionOverlay.add(bg);
+
+    // Title
+    const title = this.add.text(0, -150, '选择花牌', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '28px',
+      color: '#ffd700'
+    }).setOrigin(0.5);
+    this._flowerSelectionOverlay.add(title);
+  }
+
+  private showFlowerCardSelection(count: number, includeSeason: boolean = false): Promise<FlowerCard> {
+    return new Promise((resolve) => {
+      // Get random flower cards
+      const availableCards = ALL_FLOWER_CARDS.filter(c => c.rarity === 'common' || c.rarity === 'rare');
+      const shuffled = [...availableCards].sort(() => Math.random() - 0.5);
+      const options = shuffled.slice(0, count).map(data => createFlowerCardFromData(data));
+
+      // Clear previous card buttons
+      this._flowerSelectionOverlay.each((child: Phaser.GameObjects.GameObject) => {
+        if (child.getData && child.getData('isCardButton')) {
+          child.destroy();
+        }
+      });
+
+      // Create card selection buttons
+      const cardWidth = 120;
+      const totalWidth = options.length * cardWidth + (options.length - 1) * 20;
+      const startX = -totalWidth / 2 + cardWidth / 2;
+
+      options.forEach((card, index) => {
+        const x = startX + index * (cardWidth + 20);
+        const y = 0;
+
+        // Card background
+        const cardBg = this.add.rectangle(x, y, cardWidth, 160, 0x333355)
+          .setStrokeStyle(2, 0xffd700);
+        cardBg.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(cardBg);
+
+        // Card symbol
+        const symbol = this.add.text(x, y - 50, card.getFlowerSymbol(), {
+          fontSize: '36px'
+        }).setOrigin(0.5);
+        symbol.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(symbol);
+
+        // Card name
+        const name = this.add.text(x, y, card.name, {
+          fontFamily: 'Courier New, monospace',
+          fontSize: '14px',
+          color: '#ffffff',
+          wordWrap: { width: cardWidth - 10 },
+          align: 'center'
+        }).setOrigin(0.5);
+        name.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(name);
+
+        // Card description (truncated)
+        const desc = this.add.text(x, y + 40, card.description.substring(0, 20) + '...', {
+          fontFamily: 'Courier New, monospace',
+          fontSize: '10px',
+          color: '#aaaaaa',
+          wordWrap: { width: cardWidth - 10 },
+          align: 'center'
+        }).setOrigin(0.5);
+        desc.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(desc);
+
+        // Make clickable
+        cardBg.setInteractive({ useHandCursor: true });
+        cardBg.on('pointerdown', () => {
+          AudioManager.getInstance().playSFX('buttonClick');
+          this._flowerSelectionOverlay.setVisible(false);
+          this._flowerCardManager.addCard(card);
+          this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
+          resolve(card);
+        });
+
+        cardBg.on('pointerover', () => {
+          cardBg.setFillStyle(0x555577);
+        });
+
+        cardBg.on('pointerout', () => {
+          cardBg.setFillStyle(0x333355);
+        });
+      });
+
+      // Update title based on meld type
+      const title = this._flowerSelectionOverlay.getAt(1) as Phaser.GameObjects.Text;
+      title.setText(`选择花牌 (${count}选1)`);
+
+      // Show overlay
+      this._flowerSelectionOverlay.setVisible(true);
+    });
   }
 
   private createButton(
@@ -281,7 +453,7 @@ export class GameScene extends Phaser.Scene {
       fontSize: '20px',
       color: '#ffffff',
       backgroundColor: '#333333',
-      padding: { x: 30, y: 15 }
+      padding: { x: 25, y: 12 }
     });
     button.setOrigin(0.5);
     button.setInteractive({ useHandCursor: true });
@@ -298,14 +470,15 @@ export class GameScene extends Phaser.Scene {
     });
 
     button.on('pointerout', () => {
-      button.setStyle({ backgroundColor: '#333333' });
+      const bgColor = button === this._huButton ? '#8B0000' : '#333333';
+      button.setStyle({ backgroundColor: button.alpha === 1 ? bgColor : '#333333' });
     });
 
     return button;
   }
 
   private dealInitialHand(): void {
-    // Deal initial 13 tiles
+    // Deal initial 14 tiles (per GAME_DESIGN.md)
     const tiles: Tile[] = [];
     for (let i = 0; i < this.INITIAL_HAND_SIZE; i++) {
       if (this._drawPile.length > 0) {
@@ -323,57 +496,207 @@ export class GameScene extends Phaser.Scene {
     this.updateDrawPileCount();
   }
 
+  /* ── Meld Detection ─────────────────────────────────────── */
+
+  /**
+   * Detect what type of meld the selected tiles form
+   */
+  private detectMeldType(tiles: Tile[]): MeldType | null {
+    if (tiles.length === 3) {
+      // Check for Pong (碰) - 3 identical tiles
+      if (this.isPong(tiles)) {
+        return 'pong';
+      }
+      // Check for Chow (吃) - 3 consecutive same-suit tiles
+      if (this.isChow(tiles)) {
+        return 'chow';
+      }
+    } else if (tiles.length === 4) {
+      // Check for Kong (杠) - 4 identical tiles
+      if (this.isKong(tiles)) {
+        return 'kong';
+      }
+    }
+    return null;
+  }
+
+  private isPong(tiles: Tile[]): boolean {
+    if (tiles.length !== 3) return false;
+    return isSameTile(tiles[0], tiles[1]) && isSameTile(tiles[1], tiles[2]);
+  }
+
+  private isChow(tiles: Tile[]): boolean {
+    if (tiles.length !== 3) return false;
+
+    // Chows only work with number suits (Wan, Tiao, Tong)
+    const numberSuits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+    if (!numberSuits.includes(tiles[0].suit)) return false;
+
+    // All must be same suit
+    if (tiles[0].suit !== tiles[1].suit || tiles[1].suit !== tiles[2].suit) {
+      return false;
+    }
+
+    // Sort by value and check consecutive
+    const sorted = [...tiles].sort((a, b) => a.value - b.value);
+    return sorted[1].value === sorted[0].value + 1 &&
+           sorted[2].value === sorted[1].value + 1;
+  }
+
+  private isKong(tiles: Tile[]): boolean {
+    if (tiles.length !== 4) return false;
+    return isSameTile(tiles[0], tiles[1]) &&
+           isSameTile(tiles[1], tiles[2]) &&
+           isSameTile(tiles[2], tiles[3]);
+  }
+
+  private getMeldName(type: MeldType): string {
+    switch (type) {
+      case 'chow': return '吃 (顺子)';
+      case 'pong': return '碰 (刻子)';
+      case 'kong': return '杠 (四张)';
+    }
+  }
+
+  private getMeldFlowerCount(type: MeldType): number {
+    switch (type) {
+      case 'chow': return 2; // 2选1
+      case 'pong': return 3; // 3选1
+      case 'kong': return 5; // 5选1
+    }
+  }
+
+  private getMeldMultiplier(type: MeldType): number {
+    switch (type) {
+      case 'chow': return 1;
+      case 'pong': return 1;
+      case 'kong': return 3; // Kong gives ×3
+    }
+  }
+
   /* ── Button Actions ─────────────────────────────────────── */
 
-  private onPlayHandClicked(): void {
+  /**
+   * 出牌 - Play a meld (吃/碰/杠)
+   */
+  private async onPlayMeldClicked(): Promise<void> {
     const selectedTiles = this._handDisplay.selectedTiles;
 
     if (selectedTiles.length === 0) {
-      this.showMessage('请选择要出的牌', '#ff4444');
+      this.showMessage('请选择要出的牌组合', '#ff4444');
       return;
     }
 
-    // For now, accept any 14 tiles (13 hand + 1 selected)
-    // In a full implementation, you'd validate winning hands
-    if (this._hand.tiles.length !== 14) {
-      this.showMessage('手牌必须是14张才能胡牌', '#ff4444');
+    // Detect meld type
+    const meldType = this.detectMeldType(selectedTiles);
+
+    if (!meldType) {
+      this.showMessage('无效组合！需要: 吃(3连续) / 碰(3相同) / 杠(4相同)', '#ff4444');
       return;
     }
+
+    // Play sound
+    AudioManager.getInstance().playSFX('tilePlace');
+
+    // Remove tiles from hand
+    for (const tile of selectedTiles) {
+      this._hand.removeTile(tile);
+    }
+
+    // Store the meld
+    const meld: PlayedMeld = {
+      type: meldType,
+      tiles: [...selectedTiles],
+      multiplier: this.getMeldMultiplier(meldType)
+    };
+    this._playedMelds.push(meld);
+
+    // Update multiplier
+    this._meldMultiplier *= meld.multiplier;
+
+    // Add meld to Hand object for scoring
+    this._hand.addMeld({
+      type: meldType,
+      tiles: [...selectedTiles]
+    });
+
+    // Show meld animation
+    this.showMessage(`${this.getMeldName(meldType)} ×${meld.multiplier}`, '#00ff00');
+
+    // Update displays
+    this._handDisplay.updateDisplay();
+    this.updateMeldDisplay();
+    this.updateMeldMultiplierDisplay();
+    this.updateButtonStates();
+
+    // Show flower card selection
+    const flowerCount = this.getMeldFlowerCount(meldType);
+    await this.showFlowerCardSelection(flowerCount, meldType === 'kong');
+
+    // TODO: For Kong, also give a season card
+    if (meldType === 'kong') {
+      this.showMessage('获得季节牌! (待实现)', '#ffd700');
+    }
+  }
+
+  /**
+   * 胡! - Declare a winning hand
+   */
+  private onHuClicked(): void {
+    // Must have a proper hand structure to hu
+    // With melds, hand tiles + meld tiles should form a valid pattern
+
+    // Calculate total tiles (hand + melds)
+    const handTileCount = this._hand.tiles.length;
+    const meldTileCount = this._playedMelds.reduce((sum, m) => sum + m.tiles.length, 0);
+    const totalTiles = handTileCount + meldTileCount;
+
+    if (totalTiles !== 14) {
+      this.showMessage(`需要14张牌才能胡! (当前: ${totalTiles}张)`, '#ff4444');
+      return;
+    }
+
+    // Combine hand tiles with meld tiles for evaluation
+    const allTiles = [
+      ...this._hand.tiles,
+      ...this._playedMelds.flatMap(m => m.tiles)
+    ];
 
     // Evaluate hand
-    const handTiles = [...this._hand.tiles];
-    const evalResult = FanEvaluator.evaluateHand(handTiles);
+    const evalResult = FanEvaluator.evaluateHand(allTiles as Tile[]);
 
     if (!evalResult.isWinning) {
-      this.showMessage('这不是一副胡牌！', '#ff4444');
-      AudioManager.getInstance().playSFX('loseSound');
+      // Pihu (屁胡) fallback - give base 50 points
+      this.handlePihu();
       return;
     }
 
     // Play fan announce sound
     AudioManager.getInstance().playSFX('fanAnnounce');
 
-    // Calculate score with God Tiles
+    // Calculate score with God Tiles and meld multiplier
     let scoreBreakdown = Scoring.calculateScore(
-      handTiles,
+      allTiles as Tile[],
       evalResult.fans,
       this._activeGodTiles,
       {},
       evalResult.decomposition
     );
 
+    // Apply meld multiplier
+    let finalChips = scoreBreakdown.totalChips;
+    let finalMult = scoreBreakdown.totalMult * this._meldMultiplier;
+
     // Apply Red Dora bonuses (if using Red Dora deck)
     let redDoraBonus = 0;
     if (this._deckVariant.id === 'redDora') {
-      for (const tile of handTiles) {
+      for (const tile of allTiles) {
         redDoraBonus += getRedDoraChipBonus(tile);
       }
+      finalChips += redDoraBonus;
     }
 
     // Apply deck variant scoring modifiers
-    let finalChips = scoreBreakdown.totalChips + redDoraBonus;
-    let finalMult = scoreBreakdown.totalMult;
-
     if (this._deckVariant.scoringModifier?.chipBonus) {
       finalChips += this._deckVariant.scoringModifier.chipBonus;
     }
@@ -407,7 +730,7 @@ export class GameScene extends Phaser.Scene {
     const totalPoints = evalResult.fans.reduce((sum, f) => sum + f.points, 0);
 
     // Highlight winning tiles sequentially
-    this._handDisplay.highlightWinningTilesSequentially(handTiles, () => {
+    this._handDisplay.highlightWinningTilesSequentially(allTiles as Tile[], () => {
       // Play tile placement sounds during highlight
       AudioManager.getInstance().playSFX('tilePlace');
 
@@ -443,6 +766,31 @@ export class GameScene extends Phaser.Scene {
     // Update UI
     this.updateScoreDisplay();
     this.updateHandsRemaining();
+  }
+
+  /**
+   * Handle 屁胡 (no valid pattern) - give base 50 points
+   */
+  private handlePihu(): void {
+    AudioManager.getInstance().playSFX('tilePlace');
+
+    // Base pihu score
+    const baseScore = 50;
+    const finalScore = Math.floor(baseScore * this._meldMultiplier);
+
+    this._handsRemaining--;
+    this._currentScore += finalScore;
+
+    this.showMessage(`屁胡! +${finalScore}分 (基础50分 × ${this._meldMultiplier}倍)`, '#ffaa00');
+
+    // Update UI
+    this.updateScoreDisplay();
+    this.updateHandsRemaining();
+
+    // Check win/lose after delay
+    this.time.delayedCall(1500, () => {
+      this.checkWinLoseCondition();
+    });
   }
 
   private onDiscardClicked(): void {
@@ -569,25 +917,118 @@ export class GameScene extends Phaser.Scene {
   /* ── UI Updates ────────────────────────────────────────── */
 
   private updateButtonStates(): void {
-    const hasSelection = this._handDisplay.hasSelection;
-    const has14Tiles = this._hand.tiles.length === 14;
+    const selectedTiles = this._handDisplay.selectedTiles;
+    const hasSelection = selectedTiles.length > 0;
+    const meldType = hasSelection ? this.detectMeldType(selectedTiles) : null;
 
-    // Play Hand button: enabled if 14 tiles and has remaining hands
-    if (has14Tiles && this._handsRemaining > 0) {
-      this._playHandButton.setAlpha(1);
-      this._playHandButton.setStyle({ color: '#ffffff' });
+    // Calculate total tiles
+    const handTileCount = this._hand.tiles.length;
+    const meldTileCount = this._playedMelds.reduce((sum, m) => sum + m.tiles.length, 0);
+    const totalTiles = handTileCount + meldTileCount;
+
+    // 出牌 button: enabled if valid meld selected
+    if (meldType) {
+      this._playMeldButton.setAlpha(1);
+      this._playMeldButton.setStyle({ color: '#ffffff', backgroundColor: '#336633' });
+      this._playMeldButton.setText(`出牌(${meldType === 'chow' ? '吃' : meldType === 'pong' ? '碰' : '杠'})`);
     } else {
-      this._playHandButton.setAlpha(0.5);
-      this._playHandButton.setStyle({ color: '#888888' });
+      this._playMeldButton.setAlpha(hasSelection ? 0.7 : 0.5);
+      this._playMeldButton.setStyle({ color: '#888888', backgroundColor: '#333333' });
+      this._playMeldButton.setText('出牌');
     }
 
-    // Discard button: enabled if has selection and has remaining discards
+    // 弃牌 button: enabled if has selection and has remaining discards
     if (hasSelection && this._discardsRemaining > 0) {
       this._discardButton.setAlpha(1);
-      this._discardButton.setStyle({ color: '#ffffff' });
+      this._discardButton.setStyle({ color: '#ffffff', backgroundColor: '#333333' });
     } else {
       this._discardButton.setAlpha(0.5);
-      this._discardButton.setStyle({ color: '#888888' });
+      this._discardButton.setStyle({ color: '#888888', backgroundColor: '#333333' });
+    }
+
+    // 胡! button: enabled if total tiles = 14 and has remaining hands
+    if (totalTiles === 14 && this._handsRemaining > 0) {
+      this._huButton.setAlpha(1);
+      this._huButton.setStyle({ color: '#ffffff', backgroundColor: '#8B0000' });
+    } else {
+      this._huButton.setAlpha(0.5);
+      this._huButton.setStyle({ color: '#888888', backgroundColor: '#333333' });
+    }
+  }
+
+  private updateMeldInfo(): void {
+    const selectedTiles = this._handDisplay.selectedTiles;
+
+    if (selectedTiles.length === 0) {
+      this._meldInfoText.setText('');
+      return;
+    }
+
+    const meldType = this.detectMeldType(selectedTiles);
+
+    if (meldType) {
+      const flowerCount = this.getMeldFlowerCount(meldType);
+      const mult = this.getMeldMultiplier(meldType);
+      this._meldInfoText.setText(`${this.getMeldName(meldType)} → ×${mult}倍 + ${flowerCount}选1花牌`);
+      this._meldInfoText.setStyle({ color: '#00ff00' });
+    } else if (selectedTiles.length >= 3) {
+      this._meldInfoText.setText('无效组合');
+      this._meldInfoText.setStyle({ color: '#ff4444' });
+    } else {
+      this._meldInfoText.setText(`已选${selectedTiles.length}张 (需3-4张)`);
+      this._meldInfoText.setStyle({ color: '#aaaaaa' });
+    }
+  }
+
+  private updateMeldDisplay(): void {
+    // Clear previous meld display
+    this._meldDisplayContainer.removeAll(true);
+
+    if (this._playedMelds.length === 0) return;
+
+    // Display each meld
+    const meldWidth = 80;
+    const totalWidth = this._playedMelds.length * meldWidth;
+    const startX = -totalWidth / 2 + meldWidth / 2;
+
+    this._playedMelds.forEach((meld, index) => {
+      const x = startX + index * meldWidth;
+
+      // Meld type label
+      const label = this.add.text(x, -20, meld.type === 'chow' ? '吃' : meld.type === 'pong' ? '碰' : '杠', {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '14px',
+        color: meld.type === 'kong' ? '#ff6600' : '#66ff66'
+      }).setOrigin(0.5);
+      this._meldDisplayContainer.add(label);
+
+      // Show tile names
+      const tileNames = meld.tiles.map(t => t.displayName).join(' ');
+      const tilesText = this.add.text(x, 5, tileNames, {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '10px',
+        color: '#cccccc',
+        wordWrap: { width: meldWidth - 5 },
+        align: 'center'
+      }).setOrigin(0.5);
+      this._meldDisplayContainer.add(tilesText);
+
+      // Multiplier if kong
+      if (meld.multiplier > 1) {
+        const multText = this.add.text(x, 25, `×${meld.multiplier}`, {
+          fontFamily: 'Courier New, monospace',
+          fontSize: '12px',
+          color: '#ff6600'
+        }).setOrigin(0.5);
+        this._meldDisplayContainer.add(multText);
+      }
+    });
+  }
+
+  private updateMeldMultiplierDisplay(): void {
+    this._meldMultiplierText.setText(`出牌倍率: ×${this._meldMultiplier}`);
+    if (this._meldMultiplier > 1) {
+      this._meldMultiplierText.setStyle({ color: '#ff6600' });
     }
   }
 
