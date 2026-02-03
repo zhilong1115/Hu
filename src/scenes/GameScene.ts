@@ -696,8 +696,16 @@ export class GameScene extends Phaser.Scene {
     flowerCount += this._godTileManager.getExtraFlowerCardChoices();
     await this.showFlowerCardSelection(flowerCount, meldType === 'kong');
 
-    // TODO: For Kong, also give a season card
+    // For Kong: draw one tile to compensate (杠后补牌)
     if (meldType === 'kong') {
+      if (this._drawPile.length > 0) {
+        const drawnTile = this._drawPile.pop()!;
+        this._hand.addTile(drawnTile);
+        this._handDisplay.updateDisplay();
+        this.updateDrawPileCount();
+        this.showMessage(`杠后补牌: ${drawnTile.displayName}`, '#00ccff');
+      }
+      // TODO: Also give a season card
       this.showMessage('获得季节牌! (待实现)', '#ffd700');
     }
     
