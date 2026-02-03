@@ -12,7 +12,7 @@ import { ScreenEffects } from '../ui/ScreenEffects';
 import { GodTile } from '../roguelike/GodTile';
 import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
-import { COMMON_GOD_TILES, RARE_GOD_TILES } from '../data/godTiles';
+import { COMMON_GOD_TILES, RARE_GOD_TILES } from '../data/godTilesLegacy';
 import { ALL_FLOWER_CARDS, createFlowerCardFromData } from '../data/flowerCards';
 import { DeckVariant, DECK_VARIANTS, isRedDoraTile, getRedDoraChipBonus } from '../core/DeckVariant';
 import { AudioManager } from '../audio/AudioManager';

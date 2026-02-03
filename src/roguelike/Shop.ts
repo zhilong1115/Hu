@@ -1,6 +1,6 @@
 import { GodTile, GodTileRarity } from './GodTile';
 import { FlowerCard, FlowerCardType } from './FlowerCard';
-import { ALL_GOD_TILES, GodTileDataEntry } from '../data/godTiles';
+import { ALL_LEGACY_GOD_TILES, GodTileDataEntry } from '../data/godTilesLegacy';
 import { ALL_FLOWER_CARDS, FlowerCardData, createFlowerCardFromData } from '../data/flowerCards';
 
 export interface ShopItem {
@@ -115,7 +115,7 @@ export class Shop {
     }
 
     // Pick random god tile of that rarity
-    const tilesOfRarity = ALL_GOD_TILES.filter(t => t.rarity === rarity);
+    const tilesOfRarity = ALL_LEGACY_GOD_TILES.filter(t => t.rarity === rarity);
     const tileData = tilesOfRarity[Math.floor(Math.random() * tilesOfRarity.length)];
     const godTile = new GodTile(tileData);
 

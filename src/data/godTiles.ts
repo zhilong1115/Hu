@@ -1,526 +1,671 @@
-import { TileSuit, DragonValue, WindValue } from '../core/Tile';
-import { GodTileRarity, GodTileEffect, GodTileEffectContext } from '../roguelike/GodTile';
+/**
+ * God Tiles (神牌) System
+ * 
+ * Based on GAME_DESIGN.md v4.0
+ * - 28 unique god tiles organized into 4 bonds (羁绊)
+ * - Each bond has 7 tiles: 3 green, 2 blue, 1-2 purple, 1 gold
+ * - Bond levels unlock at 2/4/6 tiles
+ */
 
-export interface GodTileDataEntry {
-  baseTile: { suit: TileSuit; value: number };
+// ─── Enums ─────────────────────────────────────────────────────────────────
+
+export enum GodTileRarity {
+  GREEN = 'green',    // 🟢 50% drop, 5-10 gold
+  BLUE = 'blue',      // 🔵 30% drop, 15-22 gold
+  PURPLE = 'purple',  // 🟣 15% drop, 30-40 gold
+  GOLD = 'gold'       // 🟡 5% drop, 55-60 gold (special unlock)
+}
+
+export enum GodTileBond {
+  GAMBLE = 'gamble',      // 🎲 赌博羁绊 — 概率与风险
+  VISION = 'vision',      // 👁️ 洞察羁绊 — 看牌与预知
+  WEALTH = 'wealth',      // 💰 财运羁绊 — 金币转倍率
+  TRANSFORM = 'transform' // 🔄 转化羁绊 — 材质强化
+}
+
+// ─── Effect Types ──────────────────────────────────────────────────────────
+
+export type GodTileEffectTrigger = 
+  | 'onPlay'           // 出牌时 (吃/碰/杠)
+  | 'onDiscard'        // 弃牌时
+  | 'onDraw'           // 摸牌时
+  | 'onRoundStart'     // 每局开始
+  | 'onRoundEnd'       // 每回合结束
+  | 'onScore'          // 胡牌结算时
+  | 'onFlowerPick'     // 抽花牌时
+  | 'onFlowerUse'      // 使用花牌时
+  | 'passive'          // 被动效果
+
+export interface GodTileEffect {
+  trigger: GodTileEffectTrigger;
+  description: string;
+  
+  // Effect parameters (varies by effect type)
+  probability?: number;        // For probability-based effects (0-1)
+  value?: number;              // Generic value (gold amount, multiplier, etc.)
+  condition?: string;          // Human-readable condition
+  
+  // For transform effects
+  targetMaterial?: string;
+  tileCount?: number;
+}
+
+// ─── God Tile Interface ────────────────────────────────────────────────────
+
+export interface GodTile {
+  id: string;
+  name: string;
+  description: string;
   rarity: GodTileRarity;
-  displayName: string;
-  cost: number;
-  effects: GodTileEffect[];
+  bond: GodTileBond;
+  price: number;
+  effect: GodTileEffect;
+  
+  // Special flags
+  isAutoUnlock?: boolean;  // For gold tiles that auto-unlock
 }
 
-// ─── Effect Helper Functions ────────────────────────────────────────────────
+// ─── Bond Level Definitions ────────────────────────────────────────────────
 
-function hasFanWithName(context: GodTileEffectContext, ...names: string[]): boolean {
-  return context.detectedFans.some(f => names.some(n => f.name.includes(n)));
+export interface BondLevel {
+  level: number;
+  name: string;
+  required: number;
+  effect: string;
 }
 
-function hasTileInHand(context: GodTileEffectContext, suit: TileSuit, value?: number): boolean {
-  return context.hand.some(t => t.suit === suit && (value === undefined || t.value === value));
-}
-
-function countTilesInHand(context: GodTileEffectContext, suit: TileSuit, value?: number): number {
-  return context.hand.filter(t => t.suit === suit && (value === undefined || t.value === value)).length;
-}
-
-function countPongsInDecomp(context: GodTileEffectContext): number {
-  if (!context.decomposition || context.decomposition.form !== 'standard') return 0;
-  return context.decomposition.melds.filter(m => m.type === 'pong').length;
-}
-
-function countChowsInDecomp(context: GodTileEffectContext): number {
-  if (!context.decomposition || context.decomposition.form !== 'standard') return 0;
-  return context.decomposition.melds.filter(m => m.type === 'chow').length;
-}
-
-// ─── Common God Tiles (1-3金) ───────────────────────────────────────────────
-
-export const COMMON_GOD_TILES: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Wan, value: 1 },
-    rarity: GodTileRarity.COMMON,
-    displayName: '财神一万',
-    cost: 3,  // Increased from 2 - economic boost is always valuable
-    effects: [
-      {
-        name: '招财',
-        description: '每次胡牌额外获得1金币',
-        activate: (context: GodTileEffectContext) => {
-          context.goldModifiers.push({
-            source: '财神一万',
-            amount: 1,
-            description: '招财'
-          });
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Dragon, value: DragonValue.Red },
-    rarity: GodTileRarity.COMMON,
-    displayName: '红中神牌',
-    cost: 3,
-    effects: [
-      {
-        name: '红中加持',
-        description: '有红中的番型额外+2番',  // Buffed from +1 to +2 mult
-        activate: (context: GodTileEffectContext) => {
-          // Check if hand contains red dragon
-          if (hasTileInHand(context, TileSuit.Dragon, DragonValue.Red)) {
-            context.multModifiers.push({
-              source: '红中神牌',
-              amount: 2,  // Buffed from 1
-              description: '红中加持'
-            });
-          }
-        }
-      }
-    ]
-  }
-];
-
-// Rare God Tiles (4-8金)
-export const RARE_GOD_TILES: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Wind, value: WindValue.East },
-    rarity: GodTileRarity.RARE,
-    displayName: '东风神牌',
-    cost: 6,  // Increased from 5 - multiplier is very strong
-    effects: [
-      {
-        name: '东风之力',
-        description: '风牌组成的番型翻倍',
-        activate: (context: GodTileEffectContext) => {
-          // Check if hand contains wind tiles
-          const hasWind = hasTileInHand(context, TileSuit.Wind);
-          if (hasWind) {
-            context.multModifiers.push({
-              source: '东风神牌',
-              multiplier: 2,
-              description: '东风之力'
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Wan, value: 9 },
-    rarity: GodTileRarity.RARE,
-    displayName: '九万霸主',
-    cost: 7,  // Increased from 6
-    effects: [
-      {
-        name: '老头称王',
-        description: '1、9牌的番型+3番',  // Buffed from +2
-        activate: (context: GodTileEffectContext) => {
-          // Check if any fan involves terminals (1 or 9)
-          const hasTerminalFan = hasFanWithName(context, '老头', '混老头', '清老头');
-          if (hasTerminalFan) {
-            context.multModifiers.push({
-              source: '九万霸主',
-              amount: 3,  // Buffed from 2
-              description: '老头称王'
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Tong, value: 5 },
-    rarity: GodTileRarity.RARE,
-    displayName: '五筒聚宝',
-    cost: 8,  // Increased from 7 - economic boost is valuable
-    effects: [
-      {
-        name: '聚宝盆',
-        description: '每个刻子额外获得1金币',
-        activate: (context: GodTileEffectContext) => {
-          const pongCount = countPongsInDecomp(context);
-          if (pongCount > 0) {
-            context.goldModifiers.push({
-              source: '五筒聚宝',
-              amount: pongCount,
-              description: `聚宝盆 (${pongCount}刻)`
-            });
-          }
-        }
-      }
-    ]
-  }
-];
-
-// Epic God Tiles (10-15金)
-export const EPIC_GOD_TILES: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Dragon, value: DragonValue.Green },
-    rarity: GodTileRarity.EPIC,
-    displayName: '发财神牌',
-    cost: 14,  // Increased from 12 - gold doubling is extremely valuable
-    effects: [
-      {
-        name: '发财致富',
-        description: '胡牌金币奖励翻倍',
-        activate: (context: GodTileEffectContext) => {
-          // Note: This should double gold modifiers, not mult
-          // Applying as a bonus gold modifier instead
-          const baseGold = context.goldModifiers.reduce((sum, m) => sum + m.amount, 0);
-          context.goldModifiers.push({
-            source: '发财神牌',
-            amount: baseGold,
-            description: '发财致富'
-          });
-        }
-      },
-      {
-        name: '绿色传说',
-        description: '绿一色番型可以更容易达成',
-        activate: (context: GodTileEffectContext) => {
-          // If hand has green dragon, boost chips
-          if (hasTileInHand(context, TileSuit.Dragon, DragonValue.Green)) {
-            context.chipModifiers.push({
-              source: '发财神牌',
-              amount: 60,  // Buffed from 50
-              description: '绿色传说'
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Tiao, value: 1 },
-    rarity: GodTileRarity.EPIC,
-    displayName: '一条龙神',
-    cost: 15,  // Increased from 14
-    effects: [
-      {
-        name: '龙之力',
-        description: '一气通贯番型+5番',  // Buffed from +4
-        activate: (context: GodTileEffectContext) => {
-          // Check for straight patterns (一气通贯 or any chows)
-          const hasStraight = hasFanWithName(context, '一气通贯', '平和');
-          if (hasStraight) {
-            context.multModifiers.push({
-              source: '一条龙神',
-              amount: 5,  // Buffed from 4
-              description: '龙之力'
-            });
-          }
-        }
-      }
-    ]
-  }
-];
-
-// Legendary God Tiles (20-30金)
-export const LEGENDARY_GOD_TILES: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Dragon, value: DragonValue.White },
-    rarity: GodTileRarity.LEGENDARY,
-    displayName: '白板创世',
-    cost: 28,  // Increased from 25 - very powerful
-    effects: [
-      {
-        name: '创世之力',
-        description: '可以替代任意一张牌',
-        activate: (context: GodTileEffectContext) => {
-          // This is a wildcard effect - implementation would need deeper integration
-          // For now, add massive chip bonus as wildcard benefit
-          context.chipModifiers.push({
-            source: '白板创世',
-            amount: 120,  // Buffed from 100
-            description: '创世之力'
-          });
-        }
-      },
-      {
-        name: '纯净之心',
-        description: '清一色番型额外+10番',  // Buffed from +8
-        activate: (context: GodTileEffectContext) => {
-          if (hasFanWithName(context, '清一色')) {
-            context.multModifiers.push({
-              source: '白板创世',
-              amount: 10,  // Buffed from 8
-              description: '纯净之心'
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Wan, value: 5 },
-    rarity: GodTileRarity.LEGENDARY,
-    displayName: '万中之王',
-    cost: 32,  // Increased from 30 - ultimate power
-    effects: [
-      {
-        name: '万能转换',
-        description: '可以变成任意万字牌',
-        activate: (context: GodTileEffectContext) => {
-          // Wildcard for wan suit - add bonus for having wan tiles
-          const wanCount = countTilesInHand(context, TileSuit.Wan);
-          if (wanCount > 0) {
-            context.chipModifiers.push({
-              source: '万中之王',
-              amount: wanCount * 12,  // Buffed from 10
-              description: '万能转换'
-            });
-          }
-        }
-      },
-      {
-        name: '王者之威',
-        description: '所有番型+4番',  // Buffed from +3
-        activate: (context: GodTileEffectContext) => {
-          context.multModifiers.push({
-            source: '万中之王',
-            amount: 4,  // Buffed from 3
-            description: '王者之威'
-          });
-        }
-      }
-    ]
-  }
-];
-
-// ─── New Creative God Tiles ─────────────────────────────────────────────────
-
-// Additional Common God Tiles
-export const COMMON_GOD_TILES_EXTRA: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Tiao, value: 3 },
-    rarity: GodTileRarity.COMMON,
-    displayName: '三条幸运',
-    cost: 3,  // Increased from 2
-    effects: [
-      {
-        name: '幸运三倍',
-        description: '有3条时，筹码+35',  // Buffed from 30
-        activate: (context: GodTileEffectContext) => {
-          if (hasTileInHand(context, TileSuit.Tiao, 3)) {
-            context.chipModifiers.push({
-              source: '三条幸运',
-              amount: 35,  // Buffed from 30
-              description: '幸运三倍'
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Tong, value: 8 },
-    rarity: GodTileRarity.COMMON,
-    displayName: '八筒发财',
-    cost: 3,
-    effects: [
-      {
-        name: '发发发',
-        description: '每张8筒获得7筹码',  // Buffed from 5
-        activate: (context: GodTileEffectContext) => {
-          const count = countTilesInHand(context, TileSuit.Tong, 8);
-          if (count > 0) {
-            context.chipModifiers.push({
-              source: '八筒发财',
-              amount: count * 7,  // Buffed from 5
-              description: `发发发 (${count}张)`
-            });
-          }
-        }
-      }
-    ]
-  }
-];
-
-// Additional Rare God Tiles
-export const RARE_GOD_TILES_EXTRA: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Tiao, value: 9 },
-    rarity: GodTileRarity.RARE,
-    displayName: '九条天尊',
-    cost: 7,  // Increased from 6
-    effects: [
-      {
-        name: '天数九九',
-        description: '对对和番型额外×1.5倍',
-        activate: (context: GodTileEffectContext) => {
-          if (hasFanWithName(context, '对对和')) {
-            context.multModifiers.push({
-              source: '九条天尊',
-              multiplier: 1.5,
-              description: '天数九九'
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Dragon, value: DragonValue.White },
-    rarity: GodTileRarity.RARE,
-    displayName: '白板清心',
-    cost: 8,  // Increased from 7
-    effects: [
-      {
-        name: '清心寡欲',
-        description: '七对番型+4番',  // Buffed from +3
-        activate: (context: GodTileEffectContext) => {
-          if (hasFanWithName(context, '七对')) {
-            context.multModifiers.push({
-              source: '白板清心',
-              amount: 4,  // Buffed from 3
-              description: '清心寡欲'
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Wind, value: WindValue.South },
-    rarity: GodTileRarity.RARE,
-    displayName: '南风炽热',
-    cost: 6,  // Increased from 5
-    effects: [
-      {
-        name: '炽热之风',
-        description: '每有一张字牌，筹码+10',  // Buffed from 8
-        activate: (context: GodTileEffectContext) => {
-          const honorCount = context.hand.filter(t =>
-            t.suit === TileSuit.Wind || t.suit === TileSuit.Dragon
-          ).length;
-          if (honorCount > 0) {
-            context.chipModifiers.push({
-              source: '南风炽热',
-              amount: honorCount * 10,  // Buffed from 8
-              description: `炽热之风 (${honorCount}张)`
-            });
-          }
-        }
-      }
-    ]
-  }
-];
-
-// Additional Epic God Tiles
-export const EPIC_GOD_TILES_EXTRA: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Wan, value: 7 },
-    rarity: GodTileRarity.EPIC,
-    displayName: '七万星辰',
-    cost: 14,  // Increased from 13
-    effects: [
-      {
-        name: '星辰之力',
-        description: '混一色番型+6番',  // Buffed from +5
-        activate: (context: GodTileEffectContext) => {
-          if (hasFanWithName(context, '混一色')) {
-            context.multModifiers.push({
-              source: '七万星辰',
-              amount: 6,  // Buffed from 5
-              description: '星辰之力'
-            });
-          }
-        }
-      },
-      {
-        name: '七星连珠',
-        description: '每有一个顺子，获得1金币',
-        activate: (context: GodTileEffectContext) => {
-          const chowCount = countChowsInDecomp(context);
-          if (chowCount > 0) {
-            context.goldModifiers.push({
-              source: '七万星辰',
-              amount: chowCount,
-              description: `七星连珠 (${chowCount}顺)`
-            });
-          }
-        }
-      }
-    ]
-  },
-  {
-    baseTile: { suit: TileSuit.Tong, value: 6 },
-    rarity: GodTileRarity.EPIC,
-    displayName: '六筒顺利',
-    cost: 13,  // Increased from 11
-    effects: [
-      {
-        name: '六六大顺',
-        description: '有顺子时筹码×2',
-        activate: (context: GodTileEffectContext) => {
-          const chowCount = countChowsInDecomp(context);
-          if (chowCount > 0) {
-            context.chipModifiers.push({
-              source: '六筒顺利',
-              amount: context.baseChips + context.bonusChips,
-              description: '六六大顺'
-            });
-          }
-        }
-      }
-    ]
-  }
-];
-
-// Additional Legendary God Tile
-export const LEGENDARY_GOD_TILES_EXTRA: GodTileDataEntry[] = [
-  {
-    baseTile: { suit: TileSuit.Dragon, value: DragonValue.Red },
-    rarity: GodTileRarity.LEGENDARY,
-    displayName: '红中至尊',
-    cost: 30,  // Increased from 28
-    effects: [
-      {
-        name: '至尊之力',
-        description: '所有三元牌（红中发财白板）×2筹码',
-        activate: (context: GodTileEffectContext) => {
-          const dragonCount = countTilesInHand(context, TileSuit.Dragon);
-          if (dragonCount > 0) {
-            context.chipModifiers.push({
-              source: '红中至尊',
-              amount: dragonCount * 25,  // Buffed from 20
-              description: `至尊之力 (${dragonCount}张)`
-            });
-          }
-        }
-      },
-      {
-        name: '红色传说',
-        description: '字一色番型额外+12番',  // Buffed from +10
-        activate: (context: GodTileEffectContext) => {
-          if (hasFanWithName(context, '字一色')) {
-            context.multModifiers.push({
-              source: '红中至尊',
-              amount: 12,  // Buffed from 10
-              description: '红色传说'
-            });
-          }
-        }
-      }
-    ]
-  }
-];
-
-export const ALL_GOD_TILES: GodTileDataEntry[] = [
-  ...COMMON_GOD_TILES,
-  ...COMMON_GOD_TILES_EXTRA,
-  ...RARE_GOD_TILES,
-  ...RARE_GOD_TILES_EXTRA,
-  ...EPIC_GOD_TILES,
-  ...EPIC_GOD_TILES_EXTRA,
-  ...LEGENDARY_GOD_TILES,
-  ...LEGENDARY_GOD_TILES_EXTRA
-];
-
-export const getGodTilesByRarity = (rarity: GodTileRarity): GodTileDataEntry[] => {
-  return ALL_GOD_TILES.filter(tile => tile.rarity === rarity);
+export const BOND_LEVELS: Record<GodTileBond, BondLevel[]> = {
+  [GodTileBond.GAMBLE]: [
+    { level: 1, name: '赌侠', required: 2, effect: '所有概率效果 +10%' },
+    { level: 2, name: '赌王', required: 4, effect: '概率失败时 无负面效果' },
+    { level: 3, name: '赌神', required: 6, effect: '每次结算 转轮盘: (+/-/×) × (1/3/5/9)' }
+  ],
+  [GodTileBond.VISION]: [
+    { level: 1, name: '读心者', required: 2, effect: '每次出牌后，牌堆顶 2张 变明牌' },
+    { level: 2, name: '操纵师', required: 4, effect: '每局1次，弃牌时可从 明牌中选摸（限3张）' },
+    { level: 3, name: '空想家', required: 6, effect: '牌堆 全部变明牌' }
+  ],
+  [GodTileBond.WEALTH]: [
+    { level: 1, name: '财源广进', required: 2, effect: '胡牌时，每 50金币 → +1倍率' },
+    { level: 2, name: '点石成金', required: 4, effect: '胡牌时，每 30金币 → +1倍率' },
+    { level: 3, name: '富可敌国', required: 6, effect: '胡牌时，每 20金币 → ×1.5倍率' }
+  ],
+  [GodTileBond.TRANSFORM]: [
+    { level: 1, name: '偷天换日', required: 2, effect: '胡牌时，每张材质牌 → +1倍率' },
+    { level: 2, name: '造物主', required: 4, effect: '材质碎裂概率 减半，每张材质牌 → +2倍率' },
+    { level: 3, name: '万象归一', required: 6, effect: '材质 不会碎裂，每张材质牌 → ×1.5倍率' }
+  ]
 };
 
-export const getRandomGodTile = (rarity?: GodTileRarity): GodTileDataEntry => {
-  const tiles = rarity ? getGodTilesByRarity(rarity) : ALL_GOD_TILES;
-  return tiles[Math.floor(Math.random() * tiles.length)];
+// ─── 赌博羁绊 God Tiles (7张) ──────────────────────────────────────────────
+
+const GAMBLE_GOD_TILES: GodTile[] = [
+  // 🟢 Green (3张)
+  {
+    id: 'gamble_beginner_luck',
+    name: '赌运初开',
+    description: '出牌时 20% 概率额外选一张花牌',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.GAMBLE,
+    price: 8,
+    effect: {
+      trigger: 'onPlay',
+      description: '出牌时 20% 概率额外选一张花牌',
+      probability: 0.2
+    }
+  },
+  {
+    id: 'gamble_muddy_waters',
+    name: '浑水摸鱼',
+    description: '弃牌摸牌时 20% 概率多摸2张再选',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.GAMBLE,
+    price: 9,
+    effect: {
+      trigger: 'onDiscard',
+      description: '弃牌摸牌时 20% 概率多摸2张再选',
+      probability: 0.2,
+      value: 2
+    }
+  },
+  {
+    id: 'gamble_steady_flow',
+    name: '细水长流',
+    description: '使用花牌时 20% 概率不消耗',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.GAMBLE,
+    price: 10,
+    effect: {
+      trigger: 'onFlowerUse',
+      description: '使用花牌时 20% 概率不消耗',
+      probability: 0.2
+    }
+  },
+  
+  // 🔵 Blue (2张)
+  {
+    id: 'gamble_big_bet',
+    name: '豪赌一番',
+    description: '结算时 50% 得分+30%，失败-10%',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.GAMBLE,
+    price: 18,
+    effect: {
+      trigger: 'onScore',
+      description: '结算时 50% 得分+30%，失败-10%',
+      probability: 0.5,
+      value: 0.3  // +30% on success
+    }
+  },
+  {
+    id: 'gamble_fortune_flow',
+    name: '财运亨通',
+    description: '回合结束 50% +15金币，失败-5金币',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.GAMBLE,
+    price: 20,
+    effect: {
+      trigger: 'onRoundEnd',
+      description: '回合结束 50% +15金币，失败-5金币',
+      probability: 0.5,
+      value: 15
+    }
+  },
+  
+  // 🟣 Purple (1张)
+  {
+    id: 'gamble_all_in',
+    name: '孤注一掷',
+    description: '胡牌时 75% 得分×神牌数，失败-50%金币',
+    rarity: GodTileRarity.PURPLE,
+    bond: GodTileBond.GAMBLE,
+    price: 35,
+    effect: {
+      trigger: 'onScore',
+      description: '胡牌时 75% 得分×神牌数，失败-50%金币',
+      probability: 0.75,
+      condition: '得分乘以持有的神牌数量'
+    }
+  },
+  
+  // 🟡 Gold (1张) - Special unlock
+  {
+    id: 'gamble_probability_dice',
+    name: '概率之骰',
+    description: '所有概率变 100%（集齐其他6张赌博神牌自动获得）',
+    rarity: GodTileRarity.GOLD,
+    bond: GodTileBond.GAMBLE,
+    price: 0, // Cannot be bought
+    effect: {
+      trigger: 'passive',
+      description: '所有概率变 100%'
+    },
+    isAutoUnlock: true
+  }
+];
+
+// ─── 洞察羁绊 God Tiles (7张) ──────────────────────────────────────────────
+
+const VISION_GOD_TILES: GodTile[] = [
+  // 🟢 Green (3张)
+  {
+    id: 'vision_far_sight',
+    name: '千里眼',
+    description: '游戏开始时，牌堆顶 5张 变明牌',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.VISION,
+    price: 8,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '游戏开始时，牌堆顶 5张 变明牌',
+      value: 5
+    }
+  },
+  {
+    id: 'vision_keen_ear',
+    name: '顺风耳',
+    description: '每次摸牌后，下一张自动变明牌',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.VISION,
+    price: 9,
+    effect: {
+      trigger: 'onDraw',
+      description: '每次摸牌后，下一张自动变明牌',
+      value: 1
+    }
+  },
+  {
+    id: 'vision_inspiration',
+    name: '灵光一闪',
+    description: '抽花牌时，额外多看 1张 再选',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.VISION,
+    price: 7,
+    effect: {
+      trigger: 'onFlowerPick',
+      description: '抽花牌时，额外多看 1张 再选',
+      value: 1
+    }
+  },
+  
+  // 🔵 Blue (2张)
+  {
+    id: 'vision_heaven_hand',
+    name: '乾坤手',
+    description: '每回合可将 1张明牌 移到牌堆顶',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.VISION,
+    price: 18,
+    effect: {
+      trigger: 'passive',
+      description: '每回合可将 1张明牌 移到牌堆顶',
+      value: 1,
+      condition: '主动技能，每回合1次'
+    }
+  },
+  {
+    id: 'vision_shuffle_master',
+    name: '洗牌圣手',
+    description: '每回合1次，明牌洗入牌堆并重抽同等数量',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.VISION,
+    price: 16,
+    effect: {
+      trigger: 'passive',
+      description: '每回合1次，明牌洗入牌堆并重抽同等数量',
+      condition: '主动技能，每回合1次'
+    }
+  },
+  
+  // 🟣 Purple (1张)
+  {
+    id: 'vision_scavenger',
+    name: '拾遗者',
+    description: '每局1次，弃牌时可从 已弃牌堆 中换牌',
+    rarity: GodTileRarity.PURPLE,
+    bond: GodTileBond.VISION,
+    price: 32,
+    effect: {
+      trigger: 'onDiscard',
+      description: '每局1次，弃牌时可从 已弃牌堆 中换牌',
+      condition: '每局限用1次'
+    }
+  },
+  
+  // 🟡 Gold (1张)
+  {
+    id: 'vision_fate_weaver',
+    name: '命运编织',
+    description: '开局可将 2张手牌 替换成牌堆任意牌',
+    rarity: GodTileRarity.GOLD,
+    bond: GodTileBond.VISION,
+    price: 55,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '开局可将 2张手牌 替换成牌堆任意牌',
+      value: 2,
+      condition: '主动技能，每局开始时'
+    }
+  }
+];
+
+// ─── 财运羁绊 God Tiles (7张) ──────────────────────────────────────────────
+
+const WEALTH_GOD_TILES: GodTile[] = [
+  // 🟢 Green (3张)
+  {
+    id: 'wealth_lucky_cat',
+    name: '招财猫',
+    description: '每次吃/碰/杠获得 +8金币',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.WEALTH,
+    price: 7,
+    effect: {
+      trigger: 'onPlay',
+      description: '每次吃/碰/杠获得 +8金币',
+      value: 8
+    }
+  },
+  {
+    id: 'wealth_treasure_bowl',
+    name: '聚宝盆',
+    description: '回合结束时，获得 当前金币10% 的额外金币',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.WEALTH,
+    price: 9,
+    effect: {
+      trigger: 'onRoundEnd',
+      description: '回合结束时，获得 当前金币10% 的额外金币',
+      value: 0.1
+    }
+  },
+  {
+    id: 'wealth_golden_toad',
+    name: '金蟾',
+    description: '弃牌时，每弃1张 +3金币',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.WEALTH,
+    price: 8,
+    effect: {
+      trigger: 'onDiscard',
+      description: '弃牌时，每弃1张 +3金币',
+      value: 3
+    }
+  },
+  
+  // 🔵 Blue (2张)
+  {
+    id: 'wealth_money_tree',
+    name: '摇钱树',
+    description: '每持有1张花牌，回合结束 +5金币',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.WEALTH,
+    price: 18,
+    effect: {
+      trigger: 'onRoundEnd',
+      description: '每持有1张花牌，回合结束 +5金币',
+      value: 5,
+      condition: '基于持有的花牌数量'
+    }
+  },
+  {
+    id: 'wealth_pixiu',
+    name: '貔貅',
+    description: '所有金币获取 +50%，但无法在商店卖牌',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.WEALTH,
+    price: 22,
+    effect: {
+      trigger: 'passive',
+      description: '所有金币获取 +50%，但无法在商店卖牌',
+      value: 0.5,
+      condition: '无法出售任何物品'
+    }
+  },
+  
+  // 🟣 Purple (1张)
+  {
+    id: 'wealth_god_of_wealth',
+    name: '财神',
+    description: '每回合开始 +15金币，胡牌时金币奖励 ×1.5',
+    rarity: GodTileRarity.PURPLE,
+    bond: GodTileBond.WEALTH,
+    price: 38,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每回合开始 +15金币，胡牌时金币奖励 ×1.5',
+      value: 15
+    }
+  },
+  
+  // 🟡 Gold (1张)
+  {
+    id: 'wealth_three_stars',
+    name: '福禄寿',
+    description: '金币上限提升至 999，超过200金币时所有倍率 ×2',
+    rarity: GodTileRarity.GOLD,
+    bond: GodTileBond.WEALTH,
+    price: 60,
+    effect: {
+      trigger: 'passive',
+      description: '金币上限提升至 999，超过200金币时所有倍率 ×2',
+      value: 999,
+      condition: '金币 > 200 时所有倍率 ×2'
+    }
+  }
+];
+
+// ─── 转化羁绊 God Tiles (7张) ──────────────────────────────────────────────
+
+const TRANSFORM_GOD_TILES: GodTile[] = [
+  // 🟢 Green (3张)
+  {
+    id: 'transform_copper_smith',
+    name: '镀铜匠',
+    description: '每局开始时，随机 3张牌 变成铜牌',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.TRANSFORM,
+    price: 6,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，随机 3张牌 变成铜牌',
+      targetMaterial: 'copper',
+      tileCount: 3
+    }
+  },
+  {
+    id: 'transform_ice_master',
+    name: '冰封师',
+    description: '每局开始时，随机 2张牌 变成冰牌',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.TRANSFORM,
+    price: 8,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，随机 2张牌 变成冰牌',
+      targetMaterial: 'ice',
+      tileCount: 2
+    }
+  },
+  {
+    id: 'transform_bamboo_weaver',
+    name: '竹编匠',
+    description: '每局开始时，随机 3张牌 变成竹牌',
+    rarity: GodTileRarity.GREEN,
+    bond: GodTileBond.TRANSFORM,
+    price: 5,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，随机 3张牌 变成竹牌',
+      targetMaterial: 'bamboo',
+      tileCount: 3
+    }
+  },
+  
+  // 🔵 Blue (2张)
+  {
+    id: 'transform_silver_smith',
+    name: '银匠',
+    description: '每局开始时，随机 2张牌 变成银牌',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.TRANSFORM,
+    price: 15,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，随机 2张牌 变成银牌',
+      targetMaterial: 'silver',
+      tileCount: 2
+    }
+  },
+  {
+    id: 'transform_glass_worker',
+    name: '玻璃工',
+    description: '每局开始时，随机 1张牌 变成玻璃牌',
+    rarity: GodTileRarity.BLUE,
+    bond: GodTileBond.TRANSFORM,
+    price: 18,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，随机 1张牌 变成玻璃牌',
+      targetMaterial: 'glass',
+      tileCount: 1
+    }
+  },
+  
+  // 🟣 Purple (2张)
+  {
+    id: 'transform_gold_touch',
+    name: '点石成金',
+    description: '每局开始时，所有铜/银牌 变成金牌',
+    rarity: GodTileRarity.PURPLE,
+    bond: GodTileBond.TRANSFORM,
+    price: 32,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，所有铜/银牌 变成金牌',
+      targetMaterial: 'gold',
+      condition: '升级所有铜牌和银牌'
+    }
+  },
+  {
+    id: 'transform_glass_master',
+    name: '琉璃匠',
+    description: '每局开始时，随机 1张牌 变成琉璃牌',
+    rarity: GodTileRarity.PURPLE,
+    bond: GodTileBond.TRANSFORM,
+    price: 38,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，随机 1张牌 变成琉璃牌',
+      targetMaterial: 'glazed',
+      tileCount: 1
+    }
+  },
+  
+  // 🟡 Gold (1张)
+  {
+    id: 'transform_jade_touch',
+    name: '点石成玉',
+    description: '每局开始时，所有铜/银牌 升级为玉牌',
+    rarity: GodTileRarity.GOLD,
+    bond: GodTileBond.TRANSFORM,
+    price: 55,
+    effect: {
+      trigger: 'onRoundStart',
+      description: '每局开始时，所有铜/银牌 升级为玉牌',
+      targetMaterial: 'jade',
+      condition: '升级所有铜牌和银牌为玉牌'
+    }
+  }
+];
+
+// ─── All God Tiles ─────────────────────────────────────────────────────────
+
+export const ALL_GOD_TILES: GodTile[] = [
+  ...GAMBLE_GOD_TILES,
+  ...VISION_GOD_TILES,
+  ...WEALTH_GOD_TILES,
+  ...TRANSFORM_GOD_TILES
+];
+
+// ─── Helper Functions ──────────────────────────────────────────────────────
+
+/** Get all god tiles of a specific rarity */
+export function getGodTilesByRarity(rarity: GodTileRarity): GodTile[] {
+  return ALL_GOD_TILES.filter(tile => tile.rarity === rarity);
+}
+
+/** Get all god tiles of a specific bond */
+export function getGodTilesByBond(bond: GodTileBond): GodTile[] {
+  return ALL_GOD_TILES.filter(tile => tile.bond === bond);
+}
+
+/** Get a god tile by its ID */
+export function getGodTileById(id: string): GodTile | undefined {
+  return ALL_GOD_TILES.find(tile => tile.id === id);
+}
+
+/** Get purchasable god tiles (excludes auto-unlock gold tiles) */
+export function getPurchasableGodTiles(): GodTile[] {
+  return ALL_GOD_TILES.filter(tile => !tile.isAutoUnlock);
+}
+
+/** Get drop probability for a rarity */
+export function getRarityDropRate(rarity: GodTileRarity): number {
+  switch (rarity) {
+    case GodTileRarity.GREEN: return 0.5;
+    case GodTileRarity.BLUE: return 0.3;
+    case GodTileRarity.PURPLE: return 0.15;
+    case GodTileRarity.GOLD: return 0.05;
+  }
+}
+
+/** Get price range for a rarity */
+export function getRarityPriceRange(rarity: GodTileRarity): { min: number; max: number } {
+  switch (rarity) {
+    case GodTileRarity.GREEN: return { min: 5, max: 10 };
+    case GodTileRarity.BLUE: return { min: 15, max: 22 };
+    case GodTileRarity.PURPLE: return { min: 30, max: 40 };
+    case GodTileRarity.GOLD: return { min: 55, max: 60 };
+  }
+}
+
+/** Generate shop offerings based on rarity weights */
+export function generateShopGodTiles(count: number = 4): GodTile[] {
+  const purchasable = getPurchasableGodTiles();
+  const result: GodTile[] = [];
+  
+  for (let i = 0; i < count; i++) {
+    const roll = Math.random();
+    let targetRarity: GodTileRarity;
+    
+    if (roll < 0.5) {
+      targetRarity = GodTileRarity.GREEN;
+    } else if (roll < 0.8) {
+      targetRarity = GodTileRarity.BLUE;
+    } else if (roll < 0.95) {
+      targetRarity = GodTileRarity.PURPLE;
+    } else {
+      targetRarity = GodTileRarity.GOLD;
+    }
+    
+    const candidates = purchasable.filter(t => 
+      t.rarity === targetRarity && !result.includes(t)
+    );
+    
+    if (candidates.length > 0) {
+      const selected = candidates[Math.floor(Math.random() * candidates.length)];
+      result.push(selected);
+    }
+  }
+  
+  return result;
+}
+
+// ─── Bond Info ─────────────────────────────────────────────────────────────
+
+export const BOND_INFO: Record<GodTileBond, { name: string; icon: string; description: string }> = {
+  [GodTileBond.GAMBLE]: {
+    name: '赌博',
+    icon: '🎲',
+    description: '概率与风险'
+  },
+  [GodTileBond.VISION]: {
+    name: '洞察',
+    icon: '👁️',
+    description: '看牌与预知'
+  },
+  [GodTileBond.WEALTH]: {
+    name: '财运',
+    icon: '💰',
+    description: '金币转倍率'
+  },
+  [GodTileBond.TRANSFORM]: {
+    name: '转化',
+    icon: '🔄',
+    description: '材质强化'
+  }
+};
+
+export const RARITY_INFO: Record<GodTileRarity, { name: string; color: string; icon: string }> = {
+  [GodTileRarity.GREEN]: {
+    name: '绿神',
+    color: '#4CAF50',
+    icon: '🟢'
+  },
+  [GodTileRarity.BLUE]: {
+    name: '蓝神',
+    color: '#2196F3',
+    icon: '🔵'
+  },
+  [GodTileRarity.PURPLE]: {
+    name: '紫神',
+    color: '#9C27B0',
+    icon: '🟣'
+  },
+  [GodTileRarity.GOLD]: {
+    name: '金神',
+    color: '#FFD700',
+    icon: '🟡'
+  }
 };
