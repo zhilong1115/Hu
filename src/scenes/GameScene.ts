@@ -514,6 +514,27 @@ export class GameScene extends Phaser.Scene {
       this._hand.addTile(tile);
     }
 
+    // Apply god tile round start effects (Transform bond: apply materials)
+    // Note: We spread to mutable array since applyRoundStartEffects modifies the tiles
+    const effectDescriptions = this._godTileManager.applyRoundStartEffects([...this._hand.tiles]);
+    
+    // Show effect messages with slight delay for each
+    effectDescriptions.forEach((desc, index) => {
+      this.time.delayedCall(500 + index * 800, () => {
+        this.showMessage(`🔄 ${desc}`, '#00ff00');
+        AudioManager.getInstance().playSFX('tilePlace');
+      });
+    });
+    
+    // Apply gold bonus from 财神 (15 gold at round start)
+    const roundStartGoldBonus = this._godTileManager.getRoundStartGoldBonus();
+    if (roundStartGoldBonus > 0) {
+      this._gold += roundStartGoldBonus;
+      this.time.delayedCall(300, () => {
+        this.showMessage(`💰 财神: +${roundStartGoldBonus}金币!`, '#ffd700');
+      });
+    }
+
     // Animate deal
     this._handDisplay.updateDisplay();
     this.updateDrawPileCount();

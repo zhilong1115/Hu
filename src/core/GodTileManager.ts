@@ -17,6 +17,8 @@ import {
   getGodTilesByBond,
   getGodTileById
 } from '../data/godTiles';
+import { Material } from '../data/materials';
+import { Tile } from './Tile';
 
 export const MAX_GOD_TILES = 7;
 
@@ -203,6 +205,119 @@ export class GodTileManager {
   /** Get all tiles with a specific trigger */
   getTilesWithTrigger(trigger: string): GodTile[] {
     return this.ownedTiles.filter(t => t.effect.trigger === trigger);
+  }
+  
+  // ─── Round Start Effects (Transform Bond) ─────────────────────────────────
+  
+  /**
+   * Map from targetMaterial string to Material enum
+   */
+  private static readonly MATERIAL_MAP: Record<string, Material> = {
+    'copper': Material.BRONZE,
+    'bronze': Material.BRONZE,
+    'ice': Material.ICE,
+    'bamboo': Material.BAMBOO,
+    'silver': Material.SILVER,
+    'glass': Material.GLASS,
+    'gold': Material.GOLD,
+    'glazed': Material.COLORED_GLASS,
+    'colored_glass': Material.COLORED_GLASS,
+    'jade': Material.JADE,
+  };
+  
+  /**
+   * Apply all round start effects to the player's hand tiles.
+   * This should be called after dealing the initial hand but before displaying.
+   * 
+   * @param tiles - The hand tiles to apply effects to
+   * @returns Array of descriptions of effects that were applied
+   */
+  applyRoundStartEffects(tiles: Tile[]): string[] {
+    const descriptions: string[] = [];
+    const roundStartTiles = this.getTilesWithTrigger('onRoundStart');
+    
+    for (const godTile of roundStartTiles) {
+      const effect = godTile.effect;
+      
+      // Handle transform effects (转化系神牌)
+      if (effect.targetMaterial) {
+        const targetMaterial = GodTileManager.MATERIAL_MAP[effect.targetMaterial];
+        if (!targetMaterial) continue;
+        
+        // Check for upgrade effects (点石成金, 点石成玉)
+        if (effect.condition?.includes('升级') || effect.condition?.includes('铜/银')) {
+          // Upgrade all bronze/silver tiles to target material
+          const upgradedCount = this.upgradeMetalTilesToMaterial(tiles, targetMaterial);
+          if (upgradedCount > 0) {
+            descriptions.push(`${godTile.name}: ${upgradedCount}张牌 → ${this.getMaterialName(targetMaterial)}`);
+          }
+        } else if (effect.tileCount && effect.tileCount > 0) {
+          // Apply material to random tiles
+          const applied = this.applyMaterialToRandomTiles(tiles, targetMaterial, effect.tileCount);
+          if (applied > 0) {
+            descriptions.push(`${godTile.name}: ${applied}张牌 → ${this.getMaterialName(targetMaterial)}`);
+          }
+        }
+      }
+    }
+    
+    return descriptions;
+  }
+  
+  /**
+   * Apply a material to random tiles that don't already have a material
+   */
+  private applyMaterialToRandomTiles(tiles: Tile[], material: Material, count: number): number {
+    // Filter tiles without materials
+    const eligibleTiles = tiles.filter(t => !t.material || t.material === Material.NONE);
+    
+    if (eligibleTiles.length === 0) return 0;
+    
+    // Shuffle and pick up to count tiles
+    const shuffled = [...eligibleTiles].sort(() => Math.random() - 0.5);
+    const toApply = shuffled.slice(0, Math.min(count, shuffled.length));
+    
+    for (const tile of toApply) {
+      tile.material = material;
+    }
+    
+    return toApply.length;
+  }
+  
+  /**
+   * Upgrade all bronze/silver tiles to the target material (for 点石成金/点石成玉)
+   */
+  private upgradeMetalTilesToMaterial(tiles: Tile[], targetMaterial: Material): number {
+    let upgradedCount = 0;
+    
+    for (const tile of tiles) {
+      if (tile.material === Material.BRONZE || tile.material === Material.SILVER) {
+        tile.material = targetMaterial;
+        upgradedCount++;
+      }
+    }
+    
+    return upgradedCount;
+  }
+  
+  /**
+   * Get Chinese name for a material
+   */
+  private getMaterialName(material: Material): string {
+    const names: Record<Material, string> = {
+      [Material.NONE]: '无',
+      [Material.BRONZE]: '铜牌 🥉',
+      [Material.SILVER]: '银牌 🥈',
+      [Material.GOLD]: '金牌 🥇',
+      [Material.BAMBOO]: '竹牌 🎋',
+      [Material.ICE]: '冰牌 🧊',
+      [Material.GLASS]: '玻璃牌 🫧',
+      [Material.COLORED_GLASS]: '琉璃牌 🔮',
+      [Material.JADE]: '玉牌 🍀',
+      [Material.PORCELAIN]: '瓷牌 🏺',
+      [Material.EMERALD]: '翡翠牌 💎',
+    };
+    return names[material] || material;
   }
   
   /** Check if any probability bonuses apply (from 赌博 bond) */
