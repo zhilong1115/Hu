@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Tile } from '../core/Tile';
 import { TILE_W, TILE_H, getTileTextureKey } from './TileTextureGenerator';
 import { isRedDoraTile } from '../core/DeckVariant';
+import { Material, getMaterialEmoji, getMaterialTier } from '../data/materials';
 
 /* ── Tile visual states ─────────────────────────────────── */
 export enum TileState {
@@ -29,6 +30,15 @@ const RED_DORA_TINT = 0xff5555;
 const RED_DORA_MARKER_COLOR = 0xff0000;
 const RED_DORA_MARKER_SIZE = 6;
 
+// Material indicator constants
+const MATERIAL_INDICATOR_SIZE = 14;
+const MATERIAL_TIER_COLORS: Record<number, number> = {
+  0: 0xcd7f32,  // Common - bronze
+  1: 0x4fc3f7,  // Rare - blue
+  2: 0xab47bc,  // Epic - purple
+  3: 0xffd700,  // Legendary - gold
+};
+
 /**
  * TileSprite — visual representation of a mahjong tile.
  *
@@ -49,6 +59,7 @@ export class TileSprite extends Phaser.GameObjects.Container {
   private _faceImage!: Phaser.GameObjects.Image;
   private _backImage!: Phaser.GameObjects.Image;
   private _redDoraMarker?: Phaser.GameObjects.Graphics;  // Red dora indicator
+  private _materialIndicator?: Phaser.GameObjects.Container;  // Material badge
 
   // Interaction hit area
   private _hitZone!: Phaser.GameObjects.Zone;
@@ -87,6 +98,14 @@ export class TileSprite extends Phaser.GameObjects.Container {
     this._tile = tile;
     const key = getTileTextureKey(tile.suit, tile.value);
     this._faceImage.setTexture(key);
+    // Rebuild material indicator in case material changed
+    this.buildMaterialIndicator();
+    this.applyState();
+  }
+
+  /** Update just the material indicator (when material changes on same tile) */
+  public updateMaterialIndicator(): void {
+    this.buildMaterialIndicator();
     this.applyState();
   }
 
@@ -147,10 +166,62 @@ export class TileSprite extends Phaser.GameObjects.Container {
       this.add(this._redDoraMarker);
     }
 
+    // Material indicator (if tile has a material)
+    this.buildMaterialIndicator();
+
     // Hit zone for pointer events
     this._hitZone = new Phaser.GameObjects.Zone(this.scene, 0, 0, w, h);
     this._hitZone.setOrigin(0.5, 0.5);
     this.add(this._hitZone);
+  }
+
+  /**
+   * Build or update the material indicator badge
+   */
+  private buildMaterialIndicator(): void {
+    // Remove existing indicator if present
+    if (this._materialIndicator) {
+      this._materialIndicator.destroy();
+      this._materialIndicator = undefined;
+    }
+
+    const material = this._tile.material;
+    if (!material || material === Material.NONE) return;
+
+    const emoji = getMaterialEmoji(material);
+    if (!emoji) return;
+
+    const w = TILE_W;
+    const h = TILE_H;
+    const tier = getMaterialTier(material);
+    const tierColor = MATERIAL_TIER_COLORS[tier] || 0xffffff;
+
+    // Create container for the indicator
+    this._materialIndicator = new Phaser.GameObjects.Container(this.scene, 0, 0);
+
+    // Background circle with tier color
+    const bg = new Phaser.GameObjects.Graphics(this.scene);
+    bg.fillStyle(tierColor, 0.9);
+    bg.fillCircle(-w / 2 + MATERIAL_INDICATOR_SIZE / 2 + 2, h / 2 - MATERIAL_INDICATOR_SIZE / 2 - 2, MATERIAL_INDICATOR_SIZE / 2 + 1);
+    bg.lineStyle(1, 0xffffff, 0.8);
+    bg.strokeCircle(-w / 2 + MATERIAL_INDICATOR_SIZE / 2 + 2, h / 2 - MATERIAL_INDICATOR_SIZE / 2 - 2, MATERIAL_INDICATOR_SIZE / 2 + 1);
+    this._materialIndicator.add(bg);
+
+    // Emoji text
+    const emojiText = new Phaser.GameObjects.Text(
+      this.scene,
+      -w / 2 + MATERIAL_INDICATOR_SIZE / 2 + 2,
+      h / 2 - MATERIAL_INDICATOR_SIZE / 2 - 2,
+      emoji,
+      {
+        fontSize: `${MATERIAL_INDICATOR_SIZE - 2}px`,
+        padding: { x: 0, y: 0 },
+      }
+    );
+    emojiText.setOrigin(0.5, 0.5);
+    this._materialIndicator.add(emojiText);
+
+    this.add(this._materialIndicator);
   }
 
   private drawRedDoraMarker(g: Phaser.GameObjects.Graphics): void {
@@ -205,6 +276,12 @@ export class TileSprite extends Phaser.GameObjects.Container {
         if (this._redDoraMarker) {
           this._redDoraMarker.y = 0;
         }
+        // Reset material indicator position
+        if (this._materialIndicator) {
+          this._materialIndicator.y = 0;
+          this._materialIndicator.setAlpha(1);
+          this._materialIndicator.setVisible(true);
+        }
         this._shadow.setAlpha(1);
         this.drawRoundedRect(this._shadow, SHADOW_OFFSET_X, SHADOW_OFFSET_Y, w, h, 6, SHADOW_COLOR, SHADOW_ALPHA);
         break;
@@ -216,6 +293,10 @@ export class TileSprite extends Phaser.GameObjects.Container {
         this._backImage.setAlpha(1);
         this._glow.setVisible(false);
         this._backImage.y = 0;
+        // Hide material indicator when face down
+        if (this._materialIndicator) {
+          this._materialIndicator.setVisible(false);
+        }
         this._shadow.setAlpha(1);
         this.drawRoundedRect(this._shadow, SHADOW_OFFSET_X, SHADOW_OFFSET_Y, w, h, 6, SHADOW_COLOR, SHADOW_ALPHA);
         break;
@@ -248,6 +329,13 @@ export class TileSprite extends Phaser.GameObjects.Container {
           this._redDoraMarker.y = SELECTED_RAISE;
           this.bringToTop(this._redDoraMarker);
         }
+        // Update material indicator position if present
+        if (this._materialIndicator) {
+          this._materialIndicator.y = SELECTED_RAISE;
+          this._materialIndicator.setAlpha(1);
+          this._materialIndicator.setVisible(true);
+          this.bringToTop(this._materialIndicator);
+        }
         this.bringToTop(this._hitZone);
         break;
 
@@ -258,6 +346,12 @@ export class TileSprite extends Phaser.GameObjects.Container {
         this._faceImage.setAlpha(0.6);
         this._glow.setVisible(false);
         this._faceImage.y = 0;
+        // Dim material indicator when disabled
+        if (this._materialIndicator) {
+          this._materialIndicator.y = 0;
+          this._materialIndicator.setAlpha(0.5);
+          this._materialIndicator.setVisible(true);
+        }
         this._shadow.setAlpha(0.4);
         this.drawRoundedRect(this._shadow, SHADOW_OFFSET_X, SHADOW_OFFSET_Y, w, h, 6, SHADOW_COLOR, SHADOW_ALPHA * 0.5);
         break;

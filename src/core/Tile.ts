@@ -21,6 +21,8 @@ export enum DragonValue {
   White = 3   // 白板
 }
 
+import { Material } from '../data/materials';
+
 // Union type for all possible tile values
 export type TileValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | WindValue | DragonValue;
 
@@ -29,6 +31,7 @@ export interface Tile {
   suit: TileSuit;       // The suit of the tile
   value: TileValue;     // The value (1-9 for number suits, enum values for honors)
   displayName: string;  // Human-readable name like "1万", "东风", "红中"
+  material?: Material;  // Optional material enhancement (铜/银/金/竹/冰/玻璃/琉璃/玉/瓷/翡翠)
 }
 
 /**
