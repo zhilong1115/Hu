@@ -1,4 +1,4 @@
-import { FlowerCardType, FlowerEffect, FlowerCardEffectContext } from '../roguelike/FlowerCard';
+import { FlowerCard, FlowerCardType, FlowerEffect, FlowerCardEffectContext } from '../roguelike/FlowerCard';
 import { TileSuit, TileValue } from '../core/Tile';
 
 export interface FlowerCardData {
@@ -352,8 +352,7 @@ export const getRandomFlowerCard = (type?: FlowerCardType, rarity?: string): Flo
 /**
  * Create a FlowerCard instance from FlowerCardData
  */
-export const createFlowerCardFromData = (data: FlowerCardData): import('../roguelike/FlowerCard').FlowerCard => {
-  const { FlowerCard } = require('../roguelike/FlowerCard');
+export const createFlowerCardFromData = (data: FlowerCardData): FlowerCard => {
   return new FlowerCard(
     data.type,
     data.name,
