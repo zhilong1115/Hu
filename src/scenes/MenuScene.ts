@@ -457,7 +457,7 @@ export class MenuScene extends Phaser.Scene {
     this.time.delayedCall(500, () => {
       this.scene.start('GameScene', {
         roundNumber: 1,
-        targetScore: 1000,
+        targetScore: 50,
         deckVariant: this._selectedDeckVariant
       });
     });

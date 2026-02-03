@@ -57,7 +57,7 @@ export class BossGameScene extends Phaser.Scene {
 
   // Game state
   private _currentScore: number = 0;
-  private _targetScore: number = 1500;
+  private _targetScore: number = 50;
   private _handsRemaining: number = 4;
   private _discardsRemaining: number = 3;
   private _roundNumber: number = 3;

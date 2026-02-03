@@ -80,7 +80,7 @@ export class GameScene extends Phaser.Scene {
 
   // Game state
   private _currentScore: number = 0;
-  private _targetScore: number = 1000;
+  private _targetScore: number = 50;
   private _handsRemaining: number = 3;
   private _discardsRemaining: number = 5;
   private _roundNumber: number = 1;
@@ -120,7 +120,7 @@ export class GameScene extends Phaser.Scene {
   }) {
     // Initialize from passed data (from shop scene)
     this._roundNumber = data?.roundNumber ?? 1;
-    this._targetScore = data?.targetScore ?? 1000;
+    this._targetScore = data?.targetScore ?? 50;
     this._totalFansFormed = data?.totalFansFormed ?? 0;
     this._totalGodTilesCollected = data?.totalGodTilesCollected ?? 0;
     this._deckVariant = data?.deckVariant ?? DECK_VARIANTS.standard;
