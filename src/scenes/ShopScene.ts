@@ -334,7 +334,8 @@ export class ShopScene extends Phaser.Scene {
 
     this.cameras.main.once('camerafadeoutcomplete', () => {
       // Calculate next round target score (increase difficulty)
-      const nextTargetScore = Math.floor(1000 + (this._roundNumber * 500));
+      // TODO: Restore difficulty curve after testing: Math.floor(1000 + (this._roundNumber * 500))
+      const nextTargetScore = 50; // Testing mode: always 50
 
       // Transition to GameScene
       this.scene.start('GameScene', {
