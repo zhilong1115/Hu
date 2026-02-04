@@ -33,6 +33,11 @@ export interface MaterialData {
   degradesTo: Material | null;  // What it becomes when broken (null = disappears)
   special?: string;       // Special effect description
   meltsAfter?: number;    // For ice: number of rounds before melting
+  // Legendary material constraints
+  onlyHonors?: boolean;   // Can only be applied to honor tiles (字牌)
+  onlyNumbered?: boolean; // Can only be applied to numbered tiles (数牌 1-9)
+  wildcardHonor?: boolean;  // Acts as any honor tile
+  wildcardNumber?: boolean; // Acts as any number (suit unchanged)
 }
 
 /**
@@ -160,10 +165,12 @@ export const MATERIALS: Record<Material, MaterialData> = {
     rarity: 'legendary',
     chips: 0,
     mult: 0,
-    multX: 4,
-    breakChance: 0.25,
-    degradesTo: null,  // Disappears when broken, but gives gold
-    special: '25% 碎裂，碎裂时 +50 金币',
+    multX: 1,
+    breakChance: 0,
+    degradesTo: null,
+    special: '只能作用于字牌，可作为任意字牌（万能字牌）',
+    onlyHonors: true,  // Can only be applied to honor tiles
+    wildcardHonor: true,  // Acts as wildcard for any honor tile
   },
 
   [Material.EMERALD]: {
@@ -171,12 +178,14 @@ export const MATERIALS: Record<Material, MaterialData> = {
     name: '翡翠牌',
     emoji: '💎',
     rarity: 'legendary',
-    chips: 0,  // Base chips are 0 - the bonus comes from counting all emeralds
+    chips: 0,
     mult: 0,
     multX: 1,
     breakChance: 0,
     degradesTo: null,
-    special: '每持有1张翡翠牌 → 所有牌 +3 筹码',
+    special: '只能作用于数牌，可作为任意数字（花色不变）',
+    onlyNumbered: true,  // Can only be applied to numbered tiles (1-9)
+    wildcardNumber: true,  // Acts as wildcard for any number (suit stays same)
   },
 };
 
