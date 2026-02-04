@@ -243,6 +243,13 @@ export class HandDisplay extends Phaser.GameObjects.Container {
     this._tileSprites = [];
   }
 
+  /** Refresh material indicators on all tile sprites (call after materials change) */
+  public refreshMaterialIndicators(): void {
+    this._tileSprites.forEach(sprite => {
+      sprite.updateMaterialIndicator();
+    });
+  }
+
   /* ── animations ─────────────────────────────────────────── */
 
   public animateTileAdd(tile: Tile): void {

@@ -31,7 +31,7 @@ const RED_DORA_MARKER_COLOR = 0xff0000;
 const RED_DORA_MARKER_SIZE = 6;
 
 // Material indicator constants
-const MATERIAL_INDICATOR_SIZE = 14;
+const MATERIAL_INDICATOR_SIZE = 18;  // Increased from 14 for better visibility
 const MATERIAL_TIER_COLORS: Record<number, number> = {
   0: 0xcd7f32,  // Common - bronze
   1: 0x4fc3f7,  // Rare - blue
