@@ -148,11 +148,24 @@ export class GameScene extends Phaser.Scene {
     this._totalGodTilesCollected = data?.totalGodTilesCollected ?? 0;
     this._deckVariant = data?.deckVariant ?? DECK_VARIANTS.standard;
 
-    // Initialize GodTileManager (new bond system) - players start with none, buy from shop
-    this._godTileManager = data?.godTileManager ?? new GodTileManager();
-
     // Initialize god tiles from data (players start with none, buy from shop)
     this._activeGodTiles = data?.activeGodTiles ?? [];
+
+    // Initialize GodTileManager with active god tiles from shop
+    if (data?.godTileManager) {
+      this._godTileManager = data.godTileManager;
+    } else {
+      // Create GodTileManager and add all active god tiles by ID
+      // Note: activeGodTiles uses legacy GodTile type, so we look up by ID
+      this._godTileManager = new GodTileManager();
+      for (const legacyTile of this._activeGodTiles) {
+        // Look up the new god tile data by ID
+        const newTile = getGodTileById(legacyTile.id);
+        if (newTile) {
+          this._godTileManager.addGodTile(newTile);
+        }
+      }
+    }
 
     // Initialize Flower Card Manager
     if (data?.flowerCardManager) {
