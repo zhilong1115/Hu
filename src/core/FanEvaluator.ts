@@ -1,5 +1,145 @@
 import { Tile, TileSuit, TileValue, isSameTile, groupTilesByType } from './Tile';
 import { STANDARD_FANS, getFanByName } from '../data/fans';
+import { Material, getMaterialData } from '../data/materials';
+
+// ─── Wildcard Support ───────────────────────────────────────────────────────
+
+/** Check if a tile is a wildcard (瓷牌 or 翡翠牌) */
+function isWildcardTile(t: Tile): boolean {
+  if (!t.material) return false;
+  const data = getMaterialData(t.material);
+  return data?.wildcardHonor || data?.wildcardNumber || false;
+}
+
+/** Get all possible values a wildcard tile can become */
+function getWildcardPossibilities(t: Tile): { suit: TileSuit; value: TileValue }[] {
+  if (!t.material) return [{ suit: t.suit, value: t.value }];
+  
+  const data = getMaterialData(t.material);
+  
+  // 瓷牌: Can be any honor tile
+  if (data?.wildcardHonor) {
+    return [
+      { suit: TileSuit.Wind, value: 1 },  // 东
+      { suit: TileSuit.Wind, value: 2 },  // 南
+      { suit: TileSuit.Wind, value: 3 },  // 西
+      { suit: TileSuit.Wind, value: 4 },  // 北
+      { suit: TileSuit.Dragon, value: 1 }, // 中
+      { suit: TileSuit.Dragon, value: 2 }, // 发
+      { suit: TileSuit.Dragon, value: 3 }, // 白
+    ];
+  }
+  
+  // 翡翠牌: Can be any number 1-9 (same suit)
+  if (data?.wildcardNumber) {
+    return [1, 2, 3, 4, 5, 6, 7, 8, 9].map(v => ({ suit: t.suit, value: v as TileValue }));
+  }
+  
+  return [{ suit: t.suit, value: t.value }];
+}
+
+/** 
+ * Generate all possible concrete tile combinations for wildcards.
+ * Uses iterative approach to avoid stack overflow with many wildcards.
+ * Returns array of tile arrays, each representing one possible interpretation.
+ */
+function expandWildcards(tiles: Tile[]): Tile[][] {
+  const wildcardIndices: number[] = [];
+  const wildcardOptions: { suit: TileSuit; value: TileValue }[][] = [];
+  
+  // Find all wildcard tiles and their possibilities
+  for (let i = 0; i < tiles.length; i++) {
+    if (isWildcardTile(tiles[i])) {
+      wildcardIndices.push(i);
+      wildcardOptions.push(getWildcardPossibilities(tiles[i]));
+    }
+  }
+  
+  // No wildcards - return original
+  if (wildcardIndices.length === 0) {
+    return [tiles];
+  }
+  
+  // Limit combinations to prevent explosion (max ~1000 combinations)
+  const totalCombinations = wildcardOptions.reduce((acc, opts) => acc * opts.length, 1);
+  if (totalCombinations > 1000) {
+    // Too many combinations - use heuristic: try each wildcard independently
+    // and pick values that appear most in hand
+    console.warn(`Too many wildcard combinations (${totalCombinations}), using heuristic`);
+    return [applyWildcardHeuristic(tiles, wildcardIndices, wildcardOptions)];
+  }
+  
+  // Generate all combinations
+  const results: Tile[][] = [];
+  const indices = new Array(wildcardIndices.length).fill(0);
+  
+  while (true) {
+    // Create a new tile array with current wildcard assignments
+    const newTiles = tiles.map((t, i) => {
+      const wcIdx = wildcardIndices.indexOf(i);
+      if (wcIdx === -1) return t;
+      
+      const option = wildcardOptions[wcIdx][indices[wcIdx]];
+      return { ...t, suit: option.suit, value: option.value };
+    });
+    results.push(newTiles);
+    
+    // Increment indices (like counting in mixed-radix)
+    let carry = true;
+    for (let i = indices.length - 1; i >= 0 && carry; i--) {
+      indices[i]++;
+      if (indices[i] >= wildcardOptions[i].length) {
+        indices[i] = 0;
+      } else {
+        carry = false;
+      }
+    }
+    if (carry) break;
+  }
+  
+  return results;
+}
+
+/** Heuristic for when there are too many wildcard combinations */
+function applyWildcardHeuristic(
+  tiles: Tile[], 
+  wildcardIndices: number[], 
+  wildcardOptions: { suit: TileSuit; value: TileValue }[][]
+): Tile[] {
+  // Count frequency of each tile type in non-wildcard tiles
+  const freq = new Map<string, number>();
+  for (let i = 0; i < tiles.length; i++) {
+    if (!wildcardIndices.includes(i)) {
+      const key = `${tiles[i].suit}-${tiles[i].value}`;
+      freq.set(key, (freq.get(key) ?? 0) + 1);
+    }
+  }
+  
+  // For each wildcard, pick the option that would complete a set
+  return tiles.map((t, i) => {
+    const wcIdx = wildcardIndices.indexOf(i);
+    if (wcIdx === -1) return t;
+    
+    const options = wildcardOptions[wcIdx];
+    
+    // Find option that would make a triplet (count = 2) or pair (count = 1)
+    let bestOption = options[0];
+    let bestScore = 0;
+    
+    for (const opt of options) {
+      const key = `${opt.suit}-${opt.value}`;
+      const count = freq.get(key) ?? 0;
+      // Prefer completing triplets (2 existing) > pairs (1 existing) > new
+      const score = count === 2 ? 100 : count === 1 ? 10 : 0;
+      if (score > bestScore) {
+        bestScore = score;
+        bestOption = opt;
+      }
+    }
+    
+    return { ...t, suit: bestOption.suit, value: bestOption.value };
+  });
+}
 
 // ─── Public types ───────────────────────────────────────────────────────────
 
@@ -347,6 +487,27 @@ export class FanEvaluator {
       return { isWinning: false, fans: [], totalPoints: 0, decomposition: null };
     }
 
+    // Expand wildcards (瓷牌/翡翠牌) into all possible interpretations
+    const tileVariants = expandWildcards(tiles);
+    
+    let bestOverallResult: EvaluationResult | null = null;
+    
+    // Evaluate each wildcard interpretation and find the best
+    for (const variantTiles of tileVariants) {
+      const result = FanEvaluator.evaluateHandInternal(variantTiles);
+      
+      if (result.isWinning) {
+        if (bestOverallResult === null || result.totalPoints > bestOverallResult.totalPoints) {
+          bestOverallResult = result;
+        }
+      }
+    }
+    
+    return bestOverallResult ?? { isWinning: false, fans: [], totalPoints: 0, decomposition: null };
+  }
+
+  /** Internal evaluation without wildcard expansion */
+  private static evaluateHandInternal(tiles: Tile[]): EvaluationResult {
     // Collect candidate decompositions from all three win forms
     const candidates: HandDecomposition[] = [];
 
@@ -387,9 +548,14 @@ export class FanEvaluator {
   public static isWinningHand(tiles: Tile[]): boolean {
     if (tiles.length !== 14) return false;
 
-    if (checkThirteenOrphans(tiles)) return true;
-    if (checkSevenPairs(tiles)) return true;
-    if (findStandardDecompositions(tiles).length > 0) return true;
+    // Expand wildcards and check if any interpretation wins
+    const tileVariants = expandWildcards(tiles);
+    
+    for (const variantTiles of tileVariants) {
+      if (checkThirteenOrphans(variantTiles)) return true;
+      if (checkSevenPairs(variantTiles)) return true;
+      if (findStandardDecompositions(variantTiles).length > 0) return true;
+    }
 
     return false;
   }
