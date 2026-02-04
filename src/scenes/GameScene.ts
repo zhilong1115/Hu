@@ -515,7 +515,8 @@ export class GameScene extends Phaser.Scene {
 
     // Apply god tile round start effects (Transform bond: apply materials)
     // Apply round start effects directly to hand tiles (modifies in place)
-    const effectDescriptions = this._godTileManager.applyRoundStartEffects(this._hand.tiles);
+    // Cast to mutable array since applyRoundStartEffects needs to modify tile materials
+    const effectDescriptions = this._godTileManager.applyRoundStartEffects(this._hand.tiles as Tile[]);
     
     // Show effect messages with slight delay for each
     effectDescriptions.forEach((desc, index) => {
