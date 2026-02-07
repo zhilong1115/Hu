@@ -536,8 +536,9 @@ function runTests() {
   test.group('Pattern stacking');
   // ════════════════════════════════════════════════════════════════════════
 
-  test.test('对对胡 + 混一色 stack', () => {
+  test.test('对对胡 + 混老头 stack (terminals+honors supersedes 混一色)', () => {
     // 111万 999万 东东东 南南南 红中红中
+    // All tiles are terminals (1,9) or honors → 混老头 supersedes 混一色
     const tiles = [
       wan(1), wan(1), wan(1),
       wan(9), wan(9), wan(9),
@@ -548,8 +549,8 @@ function runTests() {
     const result = FanEvaluator.evaluateHand(tiles);
     test.assertEqual(result.isWinning, true);
     test.assertIncludes(fanNames(result), '对对和');
-    test.assertIncludes(fanNames(result), '混一色');
-    test.assertEqual(result.totalPoints, 6 + 6); // 对对和(6) + 混一色(6) = 12
+    test.assertIncludes(fanNames(result), '混老头');
+    test.assertEqual(result.totalPoints, 6 + 8); // 对对和(6) + 混老头(8) = 14
   });
 
   test.test('对对胡 + 清一色 stack', () => {
@@ -965,9 +966,9 @@ function runTests() {
 
   test.test('111222333 can be read as 3 pongs or 3 chows — best decomposition wins', () => {
     // 111222333万 + 456条 + 99筒
-    // Pong reading: 111,222,333万 + 456条 → 3 pongs + 1 chow → 混一色? No, multi-suit → 胡牌(1)
+    // Pong reading: 111,222,333万 + 456条 → 3 pongs + 1 chow → 三暗刻(4)
     // Chow reading: 123,123,123万 + 456条 → 4 chows → 平和(2)
-    // The evaluator should pick 平和(2) as higher scoring
+    // The evaluator should pick 三暗刻(4) as higher scoring
     const tiles = [
       wan(1), wan(1), wan(1),
       wan(2), wan(2), wan(2),
@@ -977,9 +978,348 @@ function runTests() {
     ];
     const result = FanEvaluator.evaluateHand(tiles);
     test.assertEqual(result.isWinning, true);
-    // Best decomposition should be 平和
+    // Best decomposition should be 三暗刻 (4pts > 平和 2pts)
+    test.assertIncludes(fanNames(result), '三暗刻');
+    test.assertEqual(result.totalPoints, 4);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('一气通贯 (Straight)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('123+456+789 of same suit → 一气通贯', () => {
+    // 123万 456万 789万 + 111条 + 5筒5筒
+    const tiles = [
+      wan(1), wan(2), wan(3),
+      wan(4), wan(5), wan(6),
+      wan(7), wan(8), wan(9),
+      tiao(1), tiao(1), tiao(1),
+      tong(5), tong(5),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '一气通贯');
+  });
+
+  test.test('123+456+789 of different suits → NOT 一气通贯', () => {
+    const tiles = [
+      wan(1), wan(2), wan(3),
+      tiao(4), tiao(5), tiao(6),
+      tong(7), tong(8), tong(9),
+      wan(5), wan(5), wan(5),
+      tiao(1), tiao(1),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertNotIncludes(fanNames(result), '一气通贯');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('三色同顺 (Triple Colored Straight)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('Same sequence in all 3 suits → 三色同顺', () => {
+    // 123万 123条 123筒 + 555万 + 9万9万
+    const tiles = [
+      wan(1), wan(2), wan(3),
+      tiao(1), tiao(2), tiao(3),
+      tong(1), tong(2), tong(3),
+      wan(5), wan(5), wan(5),
+      wan(9), wan(9),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '三色同顺');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('断幺九 (No Terminals or Honors)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('No 1,9 or honor tiles → 断幺九', () => {
+    // 234万 345条 567筒 678万 + 5万5万
+    const tiles = [
+      wan(2), wan(3), wan(4),
+      tiao(3), tiao(4), tiao(5),
+      tong(5), tong(6), tong(7),
+      wan(6), wan(7), wan(8),
+      wan(5), wan(5),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '断幺九');
+  });
+
+  test.test('Has terminal tile → NOT 断幺九', () => {
+    const tiles = [
+      wan(1), wan(2), wan(3),
+      wan(4), wan(5), wan(6),
+      tiao(2), tiao(3), tiao(4),
+      tiao(5), tiao(6), tiao(7),
+      tong(5), tong(5),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertNotIncludes(fanNames(result), '断幺九');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('三暗刻 (Three Concealed Triplets)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('3 pongs + 1 chow → 三暗刻', () => {
+    // 111万 222条 333筒 + 456万 + 9万9万
+    const tiles = [
+      wan(1), wan(1), wan(1),
+      tiao(2), tiao(2), tiao(2),
+      tong(3), tong(3), tong(3),
+      wan(4), wan(5), wan(6),
+      wan(9), wan(9),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '三暗刻');
+    test.assertNotIncludes(fanNames(result), '对对和');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('小三元 (Small Three Dragons)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('2 dragon pongs + dragon pair → 小三元', () => {
+    // 红中红中红中 发财发财发财 + 白板白板 + 123万 + 456条
+    const tiles = [
+      dragon(DragonValue.Red), dragon(DragonValue.Red), dragon(DragonValue.Red),
+      dragon(DragonValue.Green), dragon(DragonValue.Green), dragon(DragonValue.Green),
+      wan(1), wan(2), wan(3),
+      tiao(4), tiao(5), tiao(6),
+      dragon(DragonValue.White), dragon(DragonValue.White),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '小三元');
+    test.assertNotIncludes(fanNames(result), '大三元');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('大三元 (Big Three Dragons)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('All 3 dragon pongs → 大三元', () => {
+    // 红中红中红中 发财发财发财 白板白板白板 + 123万 + 5万5万
+    const tiles = [
+      dragon(DragonValue.Red), dragon(DragonValue.Red), dragon(DragonValue.Red),
+      dragon(DragonValue.Green), dragon(DragonValue.Green), dragon(DragonValue.Green),
+      dragon(DragonValue.White), dragon(DragonValue.White), dragon(DragonValue.White),
+      wan(1), wan(2), wan(3),
+      wan(5), wan(5),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '大三元');
+    test.assertNotIncludes(fanNames(result), '小三元');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('混老头 (All Terminals and Honors)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('Only terminals and honors → 混老头', () => {
+    // 111万 999条 东东东 南南南 + 1筒1筒
+    const tiles = [
+      wan(1), wan(1), wan(1),
+      tiao(9), tiao(9), tiao(9),
+      wind(WindValue.East), wind(WindValue.East), wind(WindValue.East),
+      wind(WindValue.South), wind(WindValue.South), wind(WindValue.South),
+      tong(1), tong(1),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '混老头');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('清老头 (All Terminals)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('Only 1s and 9s → 清老头', () => {
+    // 111万 999万 111条 999条 + 1筒1筒
+    const tiles = [
+      wan(1), wan(1), wan(1),
+      wan(9), wan(9), wan(9),
+      tiao(1), tiao(1), tiao(1),
+      tiao(9), tiao(9), tiao(9),
+      tong(1), tong(1),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '清老头');
+    test.assertNotIncludes(fanNames(result), '混老头');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('小四喜 (Small Four Winds)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('3 wind pongs + wind pair → 小四喜', () => {
+    // 东东东 南南南 西西西 + 北北 + 123万
+    const tiles = [
+      wind(WindValue.East), wind(WindValue.East), wind(WindValue.East),
+      wind(WindValue.South), wind(WindValue.South), wind(WindValue.South),
+      wind(WindValue.West), wind(WindValue.West), wind(WindValue.West),
+      wan(1), wan(2), wan(3),
+      wind(WindValue.North), wind(WindValue.North),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '小四喜');
+    test.assertNotIncludes(fanNames(result), '大四喜');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('大四喜 (Big Four Winds)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('All 4 wind pongs → 大四喜', () => {
+    // 东东东 南南南 西西西 北北北 + 红中红中
+    const tiles = [
+      wind(WindValue.East), wind(WindValue.East), wind(WindValue.East),
+      wind(WindValue.South), wind(WindValue.South), wind(WindValue.South),
+      wind(WindValue.West), wind(WindValue.West), wind(WindValue.West),
+      wind(WindValue.North), wind(WindValue.North), wind(WindValue.North),
+      dragon(DragonValue.Red), dragon(DragonValue.Red),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '大四喜');
+    test.assertNotIncludes(fanNames(result), '小四喜');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('绿一色 (All Green)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('Only green tiles (2,3,4,6,8 tiao + hatsu) → 绿一色', () => {
+    // 222条 333条 666条 888条 + 发财发财
+    const tiles = [
+      tiao(2), tiao(2), tiao(2),
+      tiao(3), tiao(3), tiao(3),
+      tiao(6), tiao(6), tiao(6),
+      tiao(8), tiao(8), tiao(8),
+      dragon(DragonValue.Green), dragon(DragonValue.Green),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '绿一色');
+  });
+
+  test.test('Green tiles without hatsu → still 绿一色', () => {
+    // 234条 234条 234条 888条 + 66条
+    const tiles = [
+      tiao(2), tiao(3), tiao(4),
+      tiao(2), tiao(3), tiao(4),
+      tiao(2), tiao(3), tiao(4),
+      tiao(8), tiao(8), tiao(8),
+      tiao(6), tiao(6),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '绿一色');
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('九莲宝灯 (Nine Gates)');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('1112345678999 + extra same suit → 九莲宝灯', () => {
+    // 1112345678999 + 5万 (extra 5)
+    const tiles = [
+      wan(1), wan(1), wan(1),
+      wan(2), wan(3), wan(4),
+      wan(5), wan(5), wan(6),
+      wan(7), wan(8), wan(9),
+      wan(9), wan(9),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '九莲宝灯');
+  });
+
+  test.test('Mixed suits → NOT 九莲宝灯', () => {
+    // Even if arrangement matches, different suits fails
+    const tiles = [
+      wan(1), wan(1), wan(1),
+      wan(2), wan(3), wan(4),
+      wan(5), wan(6), wan(7),
+      tiao(8), tiao(9), tiao(9),
+      tiao(9), wan(9),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    if (result.isWinning) {
+      test.assertNotIncludes(fanNames(result), '九莲宝灯');
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  test.group('Fan stacking with new patterns');
+  // ════════════════════════════════════════════════════════════════════════
+
+  test.test('一气通贯 + 清一色 stack', () => {
+    // 123万 456万 789万 + 111万 + 5万5万
+    const tiles = [
+      wan(1), wan(2), wan(3),
+      wan(4), wan(5), wan(6),
+      wan(7), wan(8), wan(9),
+      wan(1), wan(1), wan(1),
+      wan(5), wan(5),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '一气通贯');
+    test.assertIncludes(fanNames(result), '清一色');
+  });
+
+  test.test('大三元 + 混一色 stack', () => {
+    // 红中×3 发财×3 白板×3 + 123万 + 5万5万
+    const tiles = [
+      dragon(DragonValue.Red), dragon(DragonValue.Red), dragon(DragonValue.Red),
+      dragon(DragonValue.Green), dragon(DragonValue.Green), dragon(DragonValue.Green),
+      dragon(DragonValue.White), dragon(DragonValue.White), dragon(DragonValue.White),
+      wan(1), wan(2), wan(3),
+      wan(5), wan(5),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '大三元');
+    test.assertIncludes(fanNames(result), '混一色');
+  });
+
+  test.test('绿一色 + 对对和 stack', () => {
+    const tiles = [
+      tiao(2), tiao(2), tiao(2),
+      tiao(3), tiao(3), tiao(3),
+      tiao(6), tiao(6), tiao(6),
+      tiao(8), tiao(8), tiao(8),
+      dragon(DragonValue.Green), dragon(DragonValue.Green),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '绿一色');
+    test.assertIncludes(fanNames(result), '对对和');
+  });
+
+  test.test('断幺九 + 平和 stack', () => {
+    const tiles = [
+      wan(2), wan(3), wan(4),
+      tiao(3), tiao(4), tiao(5),
+      tong(5), tong(6), tong(7),
+      wan(6), wan(7), wan(8),
+      wan(5), wan(5),
+    ];
+    const result = FanEvaluator.evaluateHand(tiles);
+    test.assertEqual(result.isWinning, true);
+    test.assertIncludes(fanNames(result), '断幺九');
     test.assertIncludes(fanNames(result), '平和');
-    test.assertEqual(result.totalPoints, 2);
   });
 
   // Print summary

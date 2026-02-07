@@ -6,6 +6,7 @@ import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
 import { AudioManager } from '../audio/AudioManager';
 import { DeckVariant, DECK_VARIANTS } from '../core/DeckVariant';
+import { GodTileManager } from '../core/GodTileManager';
 
 interface ShopSceneData {
   roundNumber?: number;
@@ -16,6 +17,7 @@ interface ShopSceneData {
   totalFansFormed?: number;
   totalGodTilesCollected?: number;
   deckVariant?: DeckVariant;
+  godTileManager?: GodTileManager;
 }
 
 /**
@@ -46,6 +48,9 @@ export class ShopScene extends Phaser.Scene {
   // Deck variant
   private _deckVariant!: DeckVariant;
 
+  // God Tile Manager (bond system)
+  private _godTileManager!: GodTileManager;
+
   // UI components
   private _headerText!: Phaser.GameObjects.Text;
   private _goldText!: Phaser.GameObjects.Text;
@@ -64,6 +69,7 @@ export class ShopScene extends Phaser.Scene {
     this._totalFansFormed = data?.totalFansFormed ?? 0;
     this._totalGodTilesCollected = data?.totalGodTilesCollected ?? 0;
     this._deckVariant = data?.deckVariant ?? DECK_VARIANTS.standard;
+    this._godTileManager = data?.godTileManager ?? new GodTileManager();
 
     const gold = data?.gold ?? 10;
 
@@ -333,20 +339,25 @@ export class ShopScene extends Phaser.Scene {
     this.cameras.main.fadeOut(500);
 
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Calculate next round target score (increase difficulty)
-      // TODO: Restore difficulty curve after testing: Math.floor(1000 + (this._roundNumber * 500))
-      const nextTargetScore = 50; // Testing mode: always 50
+      // Difficulty curve per GAME_DESIGN.md
+      const DIFFICULTY_CURVE: Record<number, number> = {
+        1: 500, 2: 1200, 3: 2500, 4: 5000,
+        5: 10000, 6: 20000, 7: 40000, 8: 80000,
+      };
+      const nextRound = this._roundNumber + 1;
+      const nextTargetScore = DIFFICULTY_CURVE[nextRound] ?? Math.floor(80000 * Math.pow(2, nextRound - 8));
 
       // Transition to GameScene
       this.scene.start('GameScene', {
-        roundNumber: this._roundNumber + 1,
+        roundNumber: nextRound,
         targetScore: nextTargetScore,
         activeGodTiles: this._activeGodTiles,
         gold: this._shop.playerGold,
         flowerCardManager: this._flowerCardManager,
         totalFansFormed: this._totalFansFormed,
         totalGodTilesCollected: this._totalGodTilesCollected,
-        deckVariant: this._deckVariant
+        deckVariant: this._deckVariant,
+        godTileManager: this._godTileManager,
       });
     });
   }

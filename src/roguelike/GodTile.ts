@@ -61,57 +61,61 @@ function mapNewRarityToLegacy(newRarity: NewGodTileRarity): GodTileRarity {
   }
 }
 
-// Create a placeholder effect from new god tile data
+// Create an effect from new god tile data with proper implementations
 function createPlaceholderEffect(newTile: NewGodTile): GodTileEffect {
   return {
     name: newTile.name,
     description: newTile.description,
     activate: (context: GodTileEffectContext) => {
-      // TODO: Implement actual effects based on newTile.effect
-      // For now, effects are placeholder based on trigger type
       const effect = newTile.effect;
-      
-      // Basic implementation based on effect parameters
-      if (effect.value !== undefined) {
-        switch (effect.trigger) {
-          case 'onPlay':
-          case 'onDiscard':
-          case 'onDraw':
-            // Gold-related effects
-            if (newTile.bond === GodTileBond.WEALTH) {
-              context.goldModifiers.push({
-                source: newTile.name,
-                amount: effect.value as number,
-                description: effect.description
-              });
-            }
-            break;
-          case 'onScore':
-            // Score-related effects
-            context.chipModifiers.push({
-              source: newTile.name,
-              amount: Math.floor((effect.value as number) * 10),
-              description: effect.description
-            });
-            break;
-          case 'onRoundStart':
-          case 'onRoundEnd':
-            // Round-based effects (handled elsewhere, but give some chips)
-            context.chipModifiers.push({
-              source: newTile.name,
-              amount: 15,
-              description: effect.description
-            });
-            break;
-          case 'passive':
-            // Passive bonuses
+
+      // Only onScore effects are activated during scoring
+      if (effect.trigger !== 'onScore') return;
+
+      switch (newTile.id) {
+        case 'gamble_big_bet': {
+          // 豪赌一番: 50% score +30%, fail -10%
+          const roll = Math.random();
+          const prob = effect.probability ?? 0.5;
+          if (roll < prob) {
             context.multModifiers.push({
               source: newTile.name,
-              amount: 1,
-              description: effect.description
+              multiplier: 1.3,
+              description: '豪赌一番成功! 得分 +30%'
             });
-            break;
+          } else {
+            context.multModifiers.push({
+              source: newTile.name,
+              multiplier: 0.9,
+              description: '豪赌一番失败 得分 -10%'
+            });
+          }
+          break;
         }
+        case 'gamble_all_in': {
+          // 孤注一掷: 75% score × god tile count, fail -50% gold
+          const roll = Math.random();
+          const prob = effect.probability ?? 0.75;
+          if (roll < prob) {
+            // Count god tiles in context (approximate from active god tiles)
+            const godTileCount = Math.max(1, context.chipModifiers.length + context.multModifiers.length + 1);
+            context.multModifiers.push({
+              source: newTile.name,
+              multiplier: godTileCount,
+              description: `孤注一掷成功! 得分 ×${godTileCount} (神牌数)`
+            });
+          } else {
+            context.goldModifiers.push({
+              source: newTile.name,
+              amount: -Math.floor(50), // Penalty placeholder; actual gold handled in GameScene
+              description: '孤注一掷失败 -50%金币'
+            });
+          }
+          break;
+        }
+        default:
+          // Other onScore effects: no-op (handled by bond system or GodTileManager)
+          break;
       }
     }
   };

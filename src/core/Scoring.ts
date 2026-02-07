@@ -3,6 +3,7 @@ import { Fan, HandDecomposition } from './FanEvaluator';
 import { GodTile, GodTileEffectContext } from '../roguelike/GodTile';
 import { GodTileManager } from './GodTileManager';
 import { Material } from '../data/materials';
+import { MaterialManager, MaterialEffectResult } from './MaterialManager';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -186,15 +187,45 @@ export class Scoring {
       bonusChips += chips;
     }
 
+    // ── Step 2b: Apply Material effects ──
+    const materialManager = new MaterialManager();
+    const materialResult = materialManager.applyMaterialEffects(hand, hand);
+
+    bonusChips += materialResult.chips;
+    // materialResult.mult and materialResult.multX are applied later in final calc
+
     // ── Step 3: Apply God Tile modifiers ──
     const chipModifiers: ChipModifier[] = [];
     const multModifiers: MultModifier[] = [];
     const goldModifiers: GoldModifier[] = [];
 
     let additionalChips = 0;
-    let additionalMult = 0;
-    let multMultiplier = 1;
-    let totalGold = 0;
+    let additionalMult = materialResult.mult;
+    let multMultiplier = materialResult.multX;
+    let totalGold = materialResult.gold;
+
+    // Add material modifiers to breakdown
+    if (materialResult.chips > 0) {
+      chipModifiers.push({
+        source: '材质效果',
+        chipsAdded: materialResult.chips,
+        description: `材质牌筹码加成 +${materialResult.chips}`
+      });
+    }
+    if (materialResult.mult > 0) {
+      multModifiers.push({
+        source: '材质效果',
+        multAdded: materialResult.mult,
+        description: `材质牌倍率加成 +${materialResult.mult}`
+      });
+    }
+    if (materialResult.multX > 1) {
+      multModifiers.push({
+        source: '材质效果',
+        multMultiplier: materialResult.multX,
+        description: `材质牌倍率乘数 ×${materialResult.multX}`
+      });
+    }
 
     // Create effect context
     const effectContext: GodTileEffectContext = {

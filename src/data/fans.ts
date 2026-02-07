@@ -99,6 +99,11 @@ export const STANDARD_FANS: Fan[] = [
     description: '全部由绿色牌组成（2、3、4、6、8条和发）'
   },
   {
+    name: '连七对',
+    points: 48,
+    description: '同花色连续7个对子'
+  },
+  {
     name: '九莲宝灯',
     points: 88,
     description: '清一色1112345678999，自摸任意一张同花色牌'

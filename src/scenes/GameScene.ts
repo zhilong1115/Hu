@@ -19,6 +19,7 @@ import { AudioManager } from '../audio/AudioManager';
 import { GodTileManager } from '../core/GodTileManager';
 import { GodTileBond, getGodTileById } from '../data/godTiles';
 import { Material } from '../data/materials';
+import { MaterialManager, materialManager } from '../core/MaterialManager';
 
 /**
  * MeldType — Types of melds player can declare
@@ -718,6 +719,15 @@ export class GameScene extends Phaser.Scene {
     flowerCount += this._godTileManager.getExtraFlowerCardChoices();
     await this.showFlowerCardSelection(flowerCount, meldType === 'kong');
 
+    // 赌运初开: 20% chance for an extra flower card on meld play
+    if (this._godTileManager.hasGodTile('gamble_beginner_luck')) {
+      const { success } = this._godTileManager.rollProbability(0.2);
+      if (success) {
+        this.showMessage('🎲 赌运初开: 额外花牌!', '#00ff00');
+        await this.showFlowerCardSelection(1);
+      }
+    }
+
     // For Kong: draw one tile to compensate (杠后补牌)
     if (meldType === 'kong') {
       if (this._drawPile.length > 0) {
@@ -844,6 +854,27 @@ export class GameScene extends Phaser.Scene {
     if (scoreBreakdownWithBonds.rouletteResult) {
       const r = scoreBreakdownWithBonds.rouletteResult;
       this.showMessage(`🎲 赌神轮盘: ${r.operation}${r.value}!`, '#ffd700');
+    }
+
+    // Handle material breaking/degradation after hu
+    const breakReduction = this._godTileManager.getShatterReduction();
+    const breakModifier = 1 - breakReduction; // 0 = no breaks, 0.5 = half, 1 = normal
+    const breakResults = materialManager.handleBreaking(allTiles as Tile[], breakModifier);
+    if (breakResults.length > 0) {
+      let breakGold = 0;
+      const breakMessages: string[] = [];
+      for (const br of breakResults) {
+        breakGold += br.goldEarned;
+        if (br.newMaterial) {
+          breakMessages.push(`${br.tileName}: ${br.oldMaterial} → ${br.newMaterial}`);
+        } else {
+          breakMessages.push(`${br.tileName}: ${br.oldMaterial} 碎裂!`);
+        }
+      }
+      this._gold += breakGold;
+      this.time.delayedCall(500, () => {
+        this.showMessage(`材质变化: ${breakMessages.join(', ')}`, '#ff8800');
+      });
     }
 
     // Deduct a hand
@@ -973,9 +1004,18 @@ export class GameScene extends Phaser.Scene {
     // Play discard sound
     AudioManager.getInstance().playSFX('tileDiscard');
 
-    // Add to discard pile
+    // Add to discard pile and handle bamboo material discard bonus
+    let bambooGold = 0;
+    for (const tile of selectedTiles) {
+      bambooGold += materialManager.handleBambooDiscard(tile);
+    }
     this._discardPile.push(...selectedTiles);
-    
+    if (bambooGold > 0) {
+      this._gold += bambooGold;
+      this.updateGoldDisplay();
+      this.showMessage(`竹牌弃牌奖励: +${bambooGold}金币`, '#8BC34A');
+    }
+
     // Apply gold bonus from 金蟾 god tile
     const discardGoldBonus = this._godTileManager.getDiscardGoldBonus();
     if (discardGoldBonus > 0) {
@@ -1058,8 +1098,20 @@ export class GameScene extends Phaser.Scene {
     this._handsRemaining = result.context.handsRemaining;
     this._discardsRemaining = result.context.discardsRemaining;
 
-    // Remove card from display with animation
-    this._flowerCardDisplay.removeCard(selectedCard);
+    // 细水长流: 20% chance flower card is NOT consumed
+    let cardPreserved = false;
+    if (this._godTileManager.hasGodTile('gamble_steady_flow')) {
+      const { success: preserved } = this._godTileManager.rollProbability(0.2);
+      if (preserved) {
+        cardPreserved = true;
+        this.showMessage('🎲 细水长流: 花牌未消耗!', '#00ff00');
+      }
+    }
+
+    if (!cardPreserved) {
+      // Remove card from display with animation
+      this._flowerCardDisplay.removeCard(selectedCard);
+    }
 
     // Show success message
     this.showMessage(`使用了 ${selectedCard.name}`, '#00ff00');
@@ -1320,6 +1372,31 @@ export class GameScene extends Phaser.Scene {
     });
     winText.setOrigin(0.5);
     winText.setAlpha(0);
+
+    // Process round end: ice tile melting
+    const allHandTiles = [...this._hand.tiles, ...this._playedMelds.flatMap(m => m.tiles)] as Tile[];
+    const meltedTiles = materialManager.processRoundEnd(allHandTiles);
+    if (meltedTiles.length > 0) {
+      const meltNames = meltedTiles.map(t => t.displayName).join(', ');
+      this.time.delayedCall(300, () => {
+        this.showMessage(`冰牌融化: ${meltNames}`, '#87CEEB');
+      });
+    }
+
+    // Calculate round end gold from god tiles
+    const roundEndGold = this._godTileManager.calculateRoundEndGold({
+      currentGold: this._gold,
+      flowerCardCount: this._flowerCardManager.getCards().length
+    });
+    if (roundEndGold.gold !== 0) {
+      this._gold += roundEndGold.gold;
+      this.updateGoldDisplay();
+      for (const desc of roundEndGold.descriptions) {
+        this.time.delayedCall(400, () => {
+          this.showMessage(desc, '#ffd700');
+        });
+      }
+    }
 
     this.tweens.add({
       targets: winText,

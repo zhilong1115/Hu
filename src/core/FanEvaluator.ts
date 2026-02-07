@@ -473,6 +473,210 @@ function checkAllHonors(tiles: Tile[]): boolean {
   return tiles.every(t => isHonor(t));
 }
 
+// ─── Additional fan pattern detectors ─────────────────────────────────────
+
+/** 一气通贯 (Straight): 123+456+789 of the same suit among the melds. Standard form only. */
+function checkStraight(decomp: HandDecomposition): boolean {
+  if (decomp.form !== 'standard') return false;
+  const chows = decomp.melds.filter(m => m.type === 'chow');
+  if (chows.length < 3) return false;
+
+  // Group chows by suit
+  const bySuit = new Map<TileSuit, number[]>();
+  for (const meld of chows) {
+    const suit = meld.tiles[0].suit;
+    const startVal = Math.min(...meld.tiles.map(t => t.value));
+    if (!bySuit.has(suit)) bySuit.set(suit, []);
+    bySuit.get(suit)!.push(startVal);
+  }
+
+  // Check if any suit has 1, 4, 7
+  for (const starts of bySuit.values()) {
+    if (starts.includes(1) && starts.includes(4) && starts.includes(7)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** 三色同顺 (Triple Colored Straight): same sequence in all 3 numbered suits. Standard form only. */
+function checkTripleSequence(decomp: HandDecomposition): boolean {
+  if (decomp.form !== 'standard') return false;
+  const chows = decomp.melds.filter(m => m.type === 'chow');
+  if (chows.length < 3) return false;
+
+  // Group chow start values by suit
+  const bySuit = new Map<TileSuit, number[]>();
+  for (const meld of chows) {
+    const suit = meld.tiles[0].suit;
+    if (!isNumberSuit(suit)) continue;
+    const startVal = Math.min(...meld.tiles.map(t => t.value));
+    if (!bySuit.has(suit)) bySuit.set(suit, []);
+    bySuit.get(suit)!.push(startVal);
+  }
+
+  // Need all 3 number suits
+  const suits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+  if (suits.some(s => !bySuit.has(s))) return false;
+
+  // Check if all 3 suits share a common start value
+  const wanStarts = bySuit.get(TileSuit.Wan)!;
+  const tiaoStarts = bySuit.get(TileSuit.Tiao)!;
+  const tongStarts = bySuit.get(TileSuit.Tong)!;
+
+  for (const val of wanStarts) {
+    if (tiaoStarts.includes(val) && tongStarts.includes(val)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** 断幺九 (No Terminals or Honors / Tanyao): no 1, 9, wind, or dragon tiles. */
+function checkNoTerminalsOrHonors(tiles: Tile[]): boolean {
+  return tiles.every(t => !isTerminalOrHonor(t));
+}
+
+/** 三暗刻 (Three Concealed Triplets): exactly 3 melds are pongs. Standard form only. */
+function checkThreePongs(decomp: HandDecomposition): boolean {
+  if (decomp.form !== 'standard') return false;
+  const pongCount = decomp.melds.filter(m => m.type === 'pong').length;
+  return pongCount === 3;
+}
+
+/** 小三元 (Small Three Dragons): 2 dragon pongs + 1 dragon pair. Standard form only. */
+function checkSmallThreeDragons(decomp: HandDecomposition): boolean {
+  if (decomp.form !== 'standard') return false;
+
+  const dragonPongs = decomp.melds.filter(
+    m => m.type === 'pong' && m.tiles[0].suit === TileSuit.Dragon
+  );
+  const pairIsDragon = decomp.pair[0].suit === TileSuit.Dragon;
+
+  return dragonPongs.length === 2 && pairIsDragon;
+}
+
+/** 大三元 (Big Three Dragons): all 3 dragon types as pongs. Standard form only. */
+function checkBigThreeDragons(decomp: HandDecomposition): boolean {
+  if (decomp.form !== 'standard') return false;
+
+  const dragonPongs = decomp.melds.filter(
+    m => m.type === 'pong' && m.tiles[0].suit === TileSuit.Dragon
+  );
+  // Need 3 distinct dragon pong values
+  const dragonValues = new Set(dragonPongs.map(m => m.tiles[0].value));
+  return dragonValues.size === 3;
+}
+
+/** 混老头 (All Terminals and Honors): every tile is terminal (1,9) or honor. */
+function checkAllTerminalsAndHonors(tiles: Tile[]): boolean {
+  return tiles.every(t => isTerminalOrHonor(t));
+}
+
+/** 清老头 (All Terminals / Chinroutou): every tile is a terminal (1 or 9), no honors. */
+function checkAllTerminals(tiles: Tile[]): boolean {
+  return tiles.every(t => isTerminal(t));
+}
+
+/** 小四喜 (Small Four Winds): 3 wind pongs + 1 wind pair. Standard form only. */
+function checkSmallFourWinds(decomp: HandDecomposition): boolean {
+  if (decomp.form !== 'standard') return false;
+
+  const windPongs = decomp.melds.filter(
+    m => m.type === 'pong' && m.tiles[0].suit === TileSuit.Wind
+  );
+  const pairIsWind = decomp.pair[0].suit === TileSuit.Wind;
+
+  // Need exactly 3 wind pongs + wind pair, all 4 distinct winds
+  if (windPongs.length !== 3 || !pairIsWind) return false;
+  const windValues = new Set([
+    ...windPongs.map(m => m.tiles[0].value),
+    decomp.pair[0].value
+  ]);
+  return windValues.size === 4;
+}
+
+/** 大四喜 (Big Four Winds): all 4 wind types as pongs. Standard form only. */
+function checkBigFourWinds(decomp: HandDecomposition): boolean {
+  if (decomp.form !== 'standard') return false;
+
+  const windPongs = decomp.melds.filter(
+    m => m.type === 'pong' && m.tiles[0].suit === TileSuit.Wind
+  );
+  const windValues = new Set(windPongs.map(m => m.tiles[0].value));
+  return windValues.size === 4;
+}
+
+/** 绿一色 (All Green): only tiles from the green set: 2,3,4,6,8 tiao + green dragon (发). */
+function checkAllGreen(tiles: Tile[]): boolean {
+  const greenTiaoValues = new Set([2, 3, 4, 6, 8]);
+  return tiles.every(t => {
+    if (t.suit === TileSuit.Tiao && greenTiaoValues.has(t.value)) return true;
+    if (t.suit === TileSuit.Dragon && t.value === 2) return true; // 发 = Dragon value 2
+    return false;
+  });
+}
+
+/** 连七对 (Consecutive Seven Pairs): 7 consecutive pairs of the same suit. */
+function checkConsecutiveSevenPairs(tiles: Tile[]): boolean {
+  if (tiles.length !== 14) return false;
+
+  const freq = buildFrequencyMap(tiles);
+  if (freq.size !== 7) return false;
+
+  // All must be pairs
+  for (const count of freq.values()) {
+    if (count !== 2) return false;
+  }
+
+  // All must be the same numbered suit
+  const suits = new Set(tiles.map(t => t.suit));
+  if (suits.size !== 1) return false;
+  const suit = [...suits][0];
+  if (!isNumberSuit(suit)) return false;
+
+  // Values must be 7 consecutive numbers
+  const values = [...freq.keys()].map(k => Number(k.split('-')[1])).sort((a, b) => a - b);
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] !== values[i - 1] + 1) return false;
+  }
+
+  return true;
+}
+
+/** 九莲宝灯 (Nine Gates): 1112345678999 + 1 duplicate, all same numbered suit. */
+function checkNineGates(tiles: Tile[]): boolean {
+  if (tiles.length !== 14) return false;
+
+  // Must all be one numbered suit
+  const suit = tiles[0].suit;
+  if (!isNumberSuit(suit)) return false;
+  if (!tiles.every(t => t.suit === suit)) return false;
+
+  // Count each value
+  const counts = new Map<number, number>();
+  for (const t of tiles) {
+    counts.set(t.value, (counts.get(t.value) ?? 0) + 1);
+  }
+
+  // Base pattern: 1×3, 2×1, 3×1, 4×1, 5×1, 6×1, 7×1, 8×1, 9×3 = 13 tiles
+  // Plus one extra tile of any value 1-9 (the 14th)
+  const basePattern: Record<number, number> = { 1: 3, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 3 };
+
+  // Subtract base pattern and check we have exactly 1 extra tile
+  let extraCount = 0;
+  for (let v = 1; v <= 9; v++) {
+    const actual = counts.get(v) ?? 0;
+    const base = basePattern[v];
+    const diff = actual - base;
+    if (diff < 0) return false;   // Missing required tiles
+    if (diff > 1) return false;   // Too many of one value
+    extraCount += diff;
+  }
+
+  return extraCount === 1;
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export class FanEvaluator {
@@ -575,37 +779,102 @@ export class FanEvaluator {
     }
 
     if (decomp.form === 'seven_pairs') {
-      fans.push(lookupFan('七对'));
-      // Seven pairs can stack with flush patterns
-      if (checkFullFlush(tiles)) {
+      // Check for 连七对 first (supersedes basic 七对)
+      if (checkConsecutiveSevenPairs(tiles)) {
+        fans.push(lookupFan('连七对'));
+      } else {
+        fans.push(lookupFan('七对'));
+      }
+      // Seven pairs can stack with flush/composition patterns
+      if (checkAllGreen(tiles)) {
+        fans.push(lookupFan('绿一色'));
+      }
+      if (checkAllHonors(tiles)) {
+        fans.push(lookupFan('字一色'));
+      } else if (checkAllTerminals(tiles)) {
+        fans.push(lookupFan('清老头'));
+      } else if (checkAllTerminalsAndHonors(tiles)) {
+        fans.push(lookupFan('混老头'));
+      } else if (checkFullFlush(tiles)) {
         fans.push(lookupFan('清一色'));
       } else if (checkHalfFlush(tiles)) {
         fans.push(lookupFan('混一色'));
       }
-      if (checkAllHonors(tiles)) {
-        fans.push(lookupFan('字一色'));
+      if (checkNoTerminalsOrHonors(tiles)) {
+        fans.push(lookupFan('断幺九'));
       }
       return fans;
     }
 
     // ── Standard form patterns ──
 
-    // Structure-based patterns
+    // --- Yakuman-level tile composition checks (highest priority) ---
+
+    // 九莲宝灯 (88pts) — must be checked before 清一色
+    if (checkNineGates(tiles)) {
+      fans.push(lookupFan('九莲宝灯'));
+    }
+
+    // 绿一色 (64pts)
+    if (checkAllGreen(tiles)) {
+      fans.push(lookupFan('绿一色'));
+    }
+
+    // --- Structure-based patterns ---
+
+    // 平和 (all chows)
     if (checkAllSequences(decomp)) {
       fans.push(lookupFan('平和'));
     }
+    // 对对和 (all pongs)
     if (checkAllTriplets(decomp)) {
       fans.push(lookupFan('对对和'));
     }
+    // 三暗刻 (exactly 3 pongs) — mutually exclusive with 对对和
+    if (!checkAllTriplets(decomp) && checkThreePongs(decomp)) {
+      fans.push(lookupFan('三暗刻'));
+    }
 
-    // Suit-based patterns (these are mutually exclusive in escalation,
-    // but all-honors overrides flush checks)
+    // 一气通贯 (123+456+789 of same suit)
+    if (checkStraight(decomp)) {
+      fans.push(lookupFan('一气通贯'));
+    }
+
+    // 三色同顺 (same sequence in all 3 numbered suits)
+    if (checkTripleSequence(decomp)) {
+      fans.push(lookupFan('三色同顺'));
+    }
+
+    // --- Dragon patterns (mutually exclusive: 大三元 > 小三元) ---
+    if (checkBigThreeDragons(decomp)) {
+      fans.push(lookupFan('大三元'));
+    } else if (checkSmallThreeDragons(decomp)) {
+      fans.push(lookupFan('小三元'));
+    }
+
+    // --- Wind patterns (mutually exclusive: 大四喜 > 小四喜) ---
+    if (checkBigFourWinds(decomp)) {
+      fans.push(lookupFan('大四喜'));
+    } else if (checkSmallFourWinds(decomp)) {
+      fans.push(lookupFan('小四喜'));
+    }
+
+    // --- Suit/composition patterns (mutually exclusive escalation) ---
     if (checkAllHonors(tiles)) {
       fans.push(lookupFan('字一色'));
+    } else if (checkAllTerminals(tiles)) {
+      fans.push(lookupFan('清老头'));
+    } else if (checkAllTerminalsAndHonors(tiles)) {
+      fans.push(lookupFan('混老头'));
     } else if (checkFullFlush(tiles)) {
       fans.push(lookupFan('清一色'));
     } else if (checkHalfFlush(tiles)) {
       fans.push(lookupFan('混一色'));
+    }
+
+    // 断幺九 (no terminals or honors) — stacks with other patterns
+    if (checkNoTerminalsOrHonors(tiles)) {
+      fans.push(lookupFan('断幺九'));
     }
 
     // If no pattern-specific fans were detected, it's a Chicken Hand

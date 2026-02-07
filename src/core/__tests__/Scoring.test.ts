@@ -35,6 +35,12 @@ function createGodTile(
   });
 }
 
+// ─── Current balance values (from Scoring.ts) ──────────────────────────────
+// DEFAULT_OPTIONS: baseChipsPerTile=6, baseChipsPerHonorTile=12, baseChipsPerTerminalTile=9
+// getFanChipsAndMult:
+//   1pt → {15,1}, 2pt → {25,2}, 4pt → {35,3}, 6pt → {45,4}, 8pt → {55,5}
+//   24pt → {120,10}, 32pt → {180,12}, 64pt → {400,18}, 88pt → {600,25}
+
 // ─── Basic Scoring Tests ────────────────────────────────────────────────────
 
 describe('Scoring Engine', () => {
@@ -51,12 +57,12 @@ describe('Scoring Engine', () => {
       const result = Scoring.calculateScore(hand, fans);
 
       expect(result.detectedFans).toEqual(fans);
-      expect(result.baseChips).toBe(10); // 1番 = 10 chips
+      expect(result.baseChips).toBe(15); // 1pt → 15 chips
       expect(result.baseMult).toBe(2); // 1 (initial) + 1 (from fan)
-      expect(result.bonusChips).toBe(18); // Wan 1 (8) + Wan 2 (5) + Wan 3 (5)
-      expect(result.totalChips).toBe(28); // 10 + 18
+      expect(result.bonusChips).toBe(21); // Wan1 (9) + Wan2 (6) + Wan3 (6)
+      expect(result.totalChips).toBe(36); // 15 + 21
       expect(result.totalMult).toBe(2);
-      expect(result.finalScore).toBe(56); // 28 × 2
+      expect(result.finalScore).toBe(72); // 36 × 2
     });
 
     test('should calculate score with multiple fans', () => {
@@ -69,14 +75,13 @@ describe('Scoring Engine', () => {
 
       const result = Scoring.calculateScore(hand, fans);
 
-      expect(result.baseChips).toBe(120); // 20 + 100
-      expect(result.baseMult).toBe(11); // 1 + 2 + 8
-      // 14 tiles: 2 tiles with value 1 (8 each) + 2 tiles with value 9 (8 each) + 10 regular (5 each) = 16 + 16 + 50 = 82
-      // But our generation uses (i % 9) + 1, so tiles are 1,2,3,4,5,6,7,8,9,1,2,3,4,5
-      // So: 1 (8), 2-8 (5 each = 35), 9 (8), 1 (8), 2-5 (5 each = 20) = 8 + 35 + 8 + 8 + 20 = 79
-      expect(result.bonusChips).toBe(79);
-      expect(result.totalChips).toBe(199);
-      expect(result.finalScore).toBe(2189); // 199 × 11
+      expect(result.baseChips).toBe(145); // 25 + 120
+      expect(result.baseMult).toBe(13); // 1 + 2 + 10
+      // tiles: 1,2,3,4,5,6,7,8,9,1,2,3,4,5
+      // Terminals (1,9): 3 × 9 = 27. Numbers (2-8): 11 × 6 = 66. Total = 93
+      expect(result.bonusChips).toBe(93);
+      expect(result.totalChips).toBe(238); // 145 + 93
+      expect(result.finalScore).toBe(3094); // 238 × 13
     });
 
     test('should give bonus chips for honor tiles', () => {
@@ -89,10 +94,10 @@ describe('Scoring Engine', () => {
       const fans = [createFan('胡牌', 1)];
       const result = Scoring.calculateScore(hand, fans);
 
-      expect(result.bonusChips).toBe(25); // 10 + 10 + 5
+      expect(result.bonusChips).toBe(30); // 12 + 12 + 6
       const honorContributions = result.tileChipContributions.filter(tc => tc.reason === 'honor tile');
       expect(honorContributions).toHaveLength(2);
-      expect(honorContributions[0].chips).toBe(10);
+      expect(honorContributions[0].chips).toBe(12);
     });
 
     test('should give bonus chips for terminal tiles', () => {
@@ -105,10 +110,10 @@ describe('Scoring Engine', () => {
       const fans = [createFan('胡牌', 1)];
       const result = Scoring.calculateScore(hand, fans);
 
-      expect(result.bonusChips).toBe(21); // 8 + 8 + 5
+      expect(result.bonusChips).toBe(24); // 9 + 9 + 6
       const terminalContributions = result.tileChipContributions.filter(tc => tc.reason === 'terminal tile');
       expect(terminalContributions).toHaveLength(2);
-      expect(terminalContributions[0].chips).toBe(8);
+      expect(terminalContributions[0].chips).toBe(9);
     });
   });
 
@@ -117,15 +122,15 @@ describe('Scoring Engine', () => {
       const hand = [createTile(TileSuit.Wan, 1, 0)];
 
       const testCases = [
-        { fan: createFan('胡牌', 1), expectedChips: 10, expectedMult: 1 },
-        { fan: createFan('平和', 2), expectedChips: 20, expectedMult: 2 },
-        { fan: createFan('七对', 4), expectedChips: 30, expectedMult: 2 },
-        { fan: createFan('对对和', 6), expectedChips: 40, expectedMult: 3 },
-        { fan: createFan('混老头', 8), expectedChips: 50, expectedMult: 4 },
-        { fan: createFan('清一色', 24), expectedChips: 100, expectedMult: 8 },
-        { fan: createFan('四暗刻', 32), expectedChips: 150, expectedMult: 10 },
-        { fan: createFan('字一色', 64), expectedChips: 300, expectedMult: 15 },
-        { fan: createFan('国士无双', 88), expectedChips: 500, expectedMult: 20 },
+        { fan: createFan('胡牌', 1), expectedChips: 15, expectedMult: 1 },
+        { fan: createFan('平和', 2), expectedChips: 25, expectedMult: 2 },
+        { fan: createFan('七对', 4), expectedChips: 35, expectedMult: 3 },
+        { fan: createFan('对对和', 6), expectedChips: 45, expectedMult: 4 },
+        { fan: createFan('混老头', 8), expectedChips: 55, expectedMult: 5 },
+        { fan: createFan('清一色', 24), expectedChips: 120, expectedMult: 10 },
+        { fan: createFan('四暗刻', 32), expectedChips: 180, expectedMult: 12 },
+        { fan: createFan('字一色', 64), expectedChips: 400, expectedMult: 18 },
+        { fan: createFan('国士无双', 88), expectedChips: 600, expectedMult: 25 },
       ];
 
       for (const { fan, expectedChips, expectedMult } of testCases) {
@@ -150,7 +155,7 @@ describe('Scoring Engine', () => {
 
       expect(result.chipModifiers).toHaveLength(1);
       expect(result.chipModifiers[0].chipsAdded).toBe(10);
-      expect(result.totalChips).toBe(28); // 10 (base) + 8 (terminal tile 1) + 10 (god tile)
+      expect(result.totalChips).toBe(34); // 15 (base) + 9 (terminal) + 10 (god tile)
     });
 
     test('should apply mult addition from god tile', () => {
@@ -166,7 +171,7 @@ describe('Scoring Engine', () => {
 
       expect(result.multModifiers).toHaveLength(1);
       expect(result.multModifiers[0].multAdded).toBe(8);
-      expect(result.totalMult).toBe(17); // 1 + 8 (from fan) + 8 (from god tile)
+      expect(result.totalMult).toBe(19); // 1 + 10 (from fan) + 8 (from god tile)
     });
 
     test('should apply mult multiplier from god tile', () => {
@@ -219,9 +224,9 @@ describe('Scoring Engine', () => {
 
       expect(result.chipModifiers).toHaveLength(1);
       expect(result.multModifiers).toHaveLength(1);
-      expect(result.totalChips).toBe(28); // 10 + 8 (terminal) + 10
+      expect(result.totalChips).toBe(34); // 15 + 9 (terminal) + 10
       expect(result.totalMult).toBe(5); // 1 + 1 + 3
-      expect(result.finalScore).toBe(140);
+      expect(result.finalScore).toBe(170); // 34 × 5
     });
 
     test('should handle 老头称王 effect with terminal fans', () => {
@@ -316,11 +321,11 @@ describe('Scoring Engine', () => {
 
       expect(result.tileChipContributions).toHaveLength(3);
       expect(result.tileChipContributions[0].tile).toEqual(hand[0]);
-      expect(result.tileChipContributions[0].chips).toBe(8);
+      expect(result.tileChipContributions[0].chips).toBe(9);
       expect(result.tileChipContributions[0].reason).toBe('terminal tile');
-      expect(result.tileChipContributions[1].chips).toBe(5);
+      expect(result.tileChipContributions[1].chips).toBe(6);
       expect(result.tileChipContributions[1].reason).toBe('number tile');
-      expect(result.tileChipContributions[2].chips).toBe(10);
+      expect(result.tileChipContributions[2].chips).toBe(12);
       expect(result.tileChipContributions[2].reason).toBe('honor tile');
     });
   });
@@ -368,8 +373,8 @@ describe('Scoring Engine', () => {
 
       expect(result.baseChips).toBe(0);
       expect(result.baseMult).toBe(1);
-      expect(result.bonusChips).toBe(8);
-      expect(result.finalScore).toBe(8);
+      expect(result.bonusChips).toBe(9); // terminal tile: 9
+      expect(result.finalScore).toBe(9);
     });
 
     test('should handle empty god tiles array', () => {
@@ -439,20 +444,20 @@ describe('Scoring Engine', () => {
 
       const result = Scoring.calculateScore(hand, fans, godTiles);
 
-      expect(result.baseChips).toBe(120); // 20 + 100
-      expect(result.baseMult).toBe(11); // 1 + 2 + 8
-      expect(result.bonusChips).toBe(79); // Same as before: tiles 1,2,3,4,5,6,7,8,9,1,2,3,4,5
+      expect(result.baseChips).toBe(145); // 25 + 120
+      expect(result.baseMult).toBe(13); // 1 + 2 + 10
+      expect(result.bonusChips).toBe(93);
       expect(result.chipModifiers).toHaveLength(1);
       expect(result.multModifiers).toHaveLength(2);
 
-      // totalChips = 120 + 79 + 10 = 209
-      expect(result.totalChips).toBe(209);
+      // totalChips = 145 + 93 + 10 = 248
+      expect(result.totalChips).toBe(248);
 
-      // totalMult = (11 × 2) + 8 = 30
-      expect(result.totalMult).toBe(30);
+      // totalMult = (13 × 2) + 8 = 34
+      expect(result.totalMult).toBe(34);
 
-      // finalScore = 209 × 30 = 6270
-      expect(result.finalScore).toBe(6270);
+      // finalScore = 248 × 34 = 8432
+      expect(result.finalScore).toBe(8432);
     });
 
     test('should handle yakuman (88 points)', () => {
@@ -461,8 +466,8 @@ describe('Scoring Engine', () => {
 
       const result = Scoring.calculateScore(hand, fans);
 
-      expect(result.baseChips).toBe(500);
-      expect(result.baseMult).toBe(21); // 1 + 20
+      expect(result.baseChips).toBe(600);
+      expect(result.baseMult).toBe(26); // 1 + 25
       expect(result.finalScore).toBeGreaterThan(10000);
     });
   });
