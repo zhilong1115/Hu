@@ -120,6 +120,9 @@ export class GameScene extends Phaser.Scene {
   // Flower Cards
   private _flowerCardManager!: FlowerCardManager;
 
+  // Pending flower effect: forces player to discard before the effect resolves
+  private _pendingFlowerEffect: string | null = null;
+
   // Deck Variant
   private _deckVariant!: DeckVariant;
 
@@ -1024,7 +1027,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private onDiscardClicked(): void {
+  private async onDiscardClicked(): Promise<void> {
     const selectedTiles = this._handDisplay.selectedTiles;
 
     if (selectedTiles.length === 0) {
@@ -1032,13 +1035,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this._discardsRemaining <= 0) {
+    // In forced-discard mode, bypass normal discard count check
+    if (!this._pendingFlowerEffect && this._discardsRemaining <= 0) {
       this.showMessage('没有剩余弃牌次数', '#ff4444');
       return;
     }
 
     // 寒梅傲雪: allow discarding any number (still counts as 1 discard)
-    // (default behavior already allows multi-select, so this is just a flag acknowledgment)
     const hasUnlimitedDiscard = this._flowerCardManager.hasDebuff('hanmei_unlimited_discard');
     if (hasUnlimitedDiscard) {
       this._flowerCardManager.removeDebuff('hanmei_unlimited_discard');
@@ -1106,9 +1109,11 @@ export class GameScene extends Phaser.Scene {
     // If we drew extra tiles, player needs to discard the extras
     // (For now, just add them all - could add a selection UI later)
 
-    // Deduct discard
-    this._discardsRemaining--;
-    this._hand.setDiscardsRemaining(this._discardsRemaining);
+    // Deduct discard (skip if in forced-discard mode — it's a free discard from the flower effect)
+    if (!this._pendingFlowerEffect) {
+      this._discardsRemaining--;
+      this._hand.setDiscardsRemaining(this._discardsRemaining);
+    }
 
     // Update display
     this._handDisplay.updateDisplay();
@@ -1116,6 +1121,14 @@ export class GameScene extends Phaser.Scene {
     this.updateDrawPileCount();
     this.updateButtonStates();
     this._bondStatusUI.updateDisplay();
+
+    // Handle pending flower effect after discard completes
+    if (this._pendingFlowerEffect) {
+      const effect = this._pendingFlowerEffect;
+      this._pendingFlowerEffect = null;
+      this.updateButtonStates(); // Re-enable buttons immediately
+      await this.handlePostDiscardFlowerEffect(effect, selectedTiles);
+    }
   }
 
   /* ── Flower Card Actions ───────────────────────────────────── */
@@ -1238,82 +1251,20 @@ export class GameScene extends Phaser.Scene {
   private async handlePendingFlowerDebuffs(): Promise<void> {
     const mgr = this._flowerCardManager;
 
-    // ── 梅花三弄: reveal (discardCount+3) tiles, pick discardCount ──
+    // ── 梅花三弄: enter forced-discard mode ──
     if (mgr.hasDebuff('plum_sannong_pending')) {
       mgr.removeDebuff('plum_sannong_pending');
-      const discardCount = this.INITIAL_DISCARDS - this._discardsRemaining;
-      const revealCount = discardCount + 3;
-      const pickCount = discardCount;
-
-      if (revealCount > 0 && this._drawPile.length > 0) {
-        const revealed: Tile[] = [];
-        for (let i = 0; i < Math.min(revealCount, this._drawPile.length); i++) {
-          revealed.push(this._drawPile.pop()!);
-        }
-
-        if (pickCount > 0 && pickCount <= revealed.length) {
-          const picked = await this.showTileSelectionOverlay(
-            revealed,
-            pickCount,
-            `梅花三弄: 选择 ${pickCount} 张牌加入手牌`
-          );
-          // Add picked tiles to hand
-          for (const tile of picked) {
-            this._hand.addTile(tile);
-          }
-          // Return unpicked tiles to draw pile
-          const unpicked = revealed.filter(t => !picked.includes(t));
-          this._drawPile.push(...unpicked);
-          this.showMessage(`梅花三弄: 获得 ${pickCount} 张牌!`, '#ff88ff');
-        } else {
-          // No picks needed (0 discards used) - just show and return all
-          this.showMessage(`梅花三弄: 亮出 ${revealed.length} 张牌`, '#ff88ff');
-          await this.showTileSelectionOverlay(revealed, 0, '梅花三弄: 查看牌堆顶牌');
-          this._drawPile.push(...revealed);
-        }
-        this._handDisplay.updateDisplay();
-        this.updateDrawPileCount();
-      }
+      this._pendingFlowerEffect = 'plum_sannong';
+      this.showMessage('梅花三弄: 请先弃牌，然后从牌堆选牌', '#ff88ff');
+      this.updateButtonStates();
     }
 
-    // ── 一剪梅: discard 1, search for exact tile ──
+    // ── 一剪梅: enter forced-discard mode (discard exactly 1) ──
     if (mgr.hasDebuff('plum_yijian_pending')) {
       mgr.removeDebuff('plum_yijian_pending');
-      // Player must select 1 tile to discard first
-      this.showMessage('一剪梅: 请选择1张手牌弃掉，然后从牌库选取1张', '#ff88ff');
-      const discarded = await this.showTileSelectionFromHand(1, '一剪梅: 选择1张牌弃掉');
-      if (discarded.length === 1) {
-        this._hand.removeTile(discarded[0]);
-        this._discardPile.push(discarded[0]);
-        // Now let player pick any tile from the draw pile
-        if (this._drawPile.length > 0) {
-          const allDrawPile = [...this._drawPile];
-          // Sort for easier browsing
-          allDrawPile.sort((a, b) => {
-            if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
-            return a.value - b.value;
-          });
-          const picked = await this.showTileSelectionOverlay(
-            allDrawPile,
-            1,
-            '一剪梅: 从牌库选择1张牌'
-          );
-          if (picked.length === 1) {
-            // Remove picked tile from draw pile
-            const idx = this._drawPile.findIndex(t => t === picked[0]);
-            if (idx !== -1) this._drawPile.splice(idx, 1);
-            this._hand.addTile(picked[0]);
-            // Shuffle draw pile after searching
-            for (let i = this._drawPile.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [this._drawPile[i], this._drawPile[j]] = [this._drawPile[j], this._drawPile[i]];
-            }
-            this.showMessage(`一剪梅: 获得 ${picked[0].displayName}!`, '#ff88ff');
-          }
-        }
-        this._handDisplay.updateDisplay();
-        this.updateDrawPileCount();
-      }
+      this._pendingFlowerEffect = 'plum_yijian';
+      this.showMessage('一剪梅: 请选择1张牌弃掉', '#ff88ff');
+      this.updateButtonStates();
     }
 
     // ── 秋菊傲霜: random flower card ──
@@ -1376,6 +1327,75 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Handle flower card effects that trigger AFTER a forced discard.
+   * Called from onDiscardClicked when _pendingFlowerEffect was set.
+   */
+  private async handlePostDiscardFlowerEffect(effect: string, discardedTiles: Tile[]): Promise<void> {
+    if (effect === 'plum_sannong') {
+      // 梅花三弄: reveal (discardCount+3) tiles from draw pile, pick discardCount
+      const discardCount = discardedTiles.length;
+      const revealCount = discardCount + 3;
+      const pickCount = discardCount;
+
+      if (revealCount > 0 && this._drawPile.length > 0) {
+        const revealed: Tile[] = [];
+        for (let i = 0; i < Math.min(revealCount, this._drawPile.length); i++) {
+          revealed.push(this._drawPile.pop()!);
+        }
+
+        if (pickCount > 0 && pickCount <= revealed.length) {
+          const picked = await this.showTileSelectionOverlay(
+            revealed,
+            pickCount,
+            `梅花三弄: 选择 ${pickCount} 张牌加入手牌`
+          );
+          for (const tile of picked) {
+            this._hand.addTile(tile);
+          }
+          const unpicked = revealed.filter(t => !picked.includes(t));
+          this._drawPile.push(...unpicked);
+          this.showMessage(`梅花三弄: 获得 ${pickCount} 张牌!`, '#ff88ff');
+        } else {
+          this.showMessage(`梅花三弄: 亮出 ${revealed.length} 张牌`, '#ff88ff');
+          await this.showTileSelectionOverlay(revealed, 0, '梅花三弄: 查看牌堆顶牌');
+          this._drawPile.push(...revealed);
+        }
+        this._handDisplay.updateDisplay();
+        this.updateDrawPileCount();
+      }
+    } else if (effect === 'plum_yijian') {
+      // 一剪梅: show ALL draw pile tiles sorted, player picks 1
+      if (this._drawPile.length > 0) {
+        const allDrawPile = [...this._drawPile];
+        allDrawPile.sort((a, b) => {
+          if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
+          return a.value - b.value;
+        });
+        const picked = await this.showTileSelectionOverlay(
+          allDrawPile,
+          1,
+          '一剪梅: 从牌库选择1张牌'
+        );
+        if (picked.length === 1) {
+          const idx = this._drawPile.findIndex(t => t === picked[0]);
+          if (idx !== -1) this._drawPile.splice(idx, 1);
+          this._hand.addTile(picked[0]);
+          // Shuffle draw pile after searching
+          for (let i = this._drawPile.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this._drawPile[i], this._drawPile[j]] = [this._drawPile[j], this._drawPile[i]];
+          }
+          this.showMessage(`一剪梅: 获得 ${picked[0].displayName}!`, '#ff88ff');
+        }
+        this._handDisplay.updateDisplay();
+        this.updateDrawPileCount();
+      }
+    }
+
+    this.updateButtonStates();
+  }
+
+  /**
    * Apply random materials to N random hand tiles
    */
   private applyRandomMaterialToTiles(count: number): void {
@@ -1403,63 +1423,94 @@ export class GameScene extends Phaser.Scene {
    */
   private showTileSelectionOverlay(tiles: Tile[], pickCount: number, title: string): Promise<Tile[]> {
     return new Promise((resolve) => {
-      const centerX = this.scale.width / 2;
-      const centerY = this.scale.height / 2;
+      const screenW = this.scale.width;
+      const screenH = this.scale.height;
+      const centerX = screenW / 2;
+      const centerY = screenH / 2;
       const container = this.add.container(centerX, centerY);
       container.setDepth(1001);
 
       // Dark bg
-      const bg = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.85);
+      const bg = this.add.rectangle(0, 0, screenW, screenH, 0x000000, 0.85);
       bg.setInteractive();
       container.add(bg);
 
       // Title
-      const titleText = this.add.text(0, -200, title, {
+      const titleText = this.add.text(0, -screenH / 2 + 30, title, {
         fontFamily: 'Courier New, monospace',
-        fontSize: '22px',
+        fontSize: '20px',
         color: '#ffd700',
-        wordWrap: { width: this.scale.width - 40 },
+        wordWrap: { width: screenW - 40 },
         align: 'center'
       }).setOrigin(0.5);
       container.add(titleText);
 
       const selected: Set<number> = new Set();
       const tileButtons: Phaser.GameObjects.Rectangle[] = [];
-      const tileTexts: Phaser.GameObjects.Text[] = [];
 
-      // Layout tiles in rows
-      const cols = Math.min(tiles.length, 7);
+      // Scrollable tile container
+      const tileContainer = this.add.container(0, 0);
+      container.add(tileContainer);
+
+      // Layout tiles - adapt to screen width
+      const tileW = 50;
+      const tileH = 68;
+      const gap = 6;
+      const maxCols = Math.floor((screenW - 40) / (tileW + gap));
+      const cols = Math.min(tiles.length, maxCols);
       const rows = Math.ceil(tiles.length / cols);
-      const tileW = 55;
-      const tileH = 75;
-      const gap = 8;
       const startX = -(cols * (tileW + gap) - gap) / 2 + tileW / 2;
-      const startY = -80;
+
+      // Calculate available height for tiles (between title and confirm button)
+      const titleBottom = -screenH / 2 + 60;
+      const confirmTop = screenH / 2 - 60;
+      const availableH = confirmTop - titleBottom - 20;
+      const contentH = rows * (tileH + gap);
+      const needsScroll = contentH > availableH;
+      const tilesStartY = titleBottom + 10 + (needsScroll ? 0 : (availableH - contentH) / 2);
+
+      // Set up scroll offset
+      let scrollY = 0;
+      const maxScroll = Math.max(0, contentH - availableH);
+
+      // Create mask for scrollable area if needed
+      if (needsScroll) {
+        const maskShape = this.make.graphics({});
+        maskShape.fillRect(
+          centerX - screenW / 2, centerY + titleBottom,
+          screenW, availableH
+        );
+        const mask = maskShape.createGeometryMask();
+        tileContainer.setMask(mask);
+      }
+
+      const updateTilePositions = () => {
+        tileContainer.setY(tilesStartY - scrollY);
+      };
 
       tiles.forEach((tile, i) => {
         const col = i % cols;
         const row = Math.floor(i / cols);
         const x = startX + col * (tileW + gap);
-        const y = startY + row * (tileH + gap);
+        const y = row * (tileH + gap);
 
         const tileBg = this.add.rectangle(x, y, tileW, tileH, 0x224422)
           .setStrokeStyle(2, 0x888888);
         tileBg.setInteractive({ useHandCursor: true });
-        container.add(tileBg);
+        tileContainer.add(tileBg);
         tileButtons.push(tileBg);
 
         const tileLabel = this.add.text(x, y, tile.displayName, {
           fontFamily: 'Courier New, monospace',
-          fontSize: '14px',
+          fontSize: '13px',
           color: '#ffffff',
           align: 'center',
           wordWrap: { width: tileW - 4 }
         }).setOrigin(0.5);
-        container.add(tileLabel);
-        tileTexts.push(tileLabel);
+        tileContainer.add(tileLabel);
 
         tileBg.on('pointerdown', () => {
-          if (pickCount === 0) return; // View only mode
+          if (pickCount === 0) return;
           if (selected.has(i)) {
             selected.delete(i);
             tileBg.setFillStyle(0x224422);
@@ -1473,8 +1524,24 @@ export class GameScene extends Phaser.Scene {
         });
       });
 
-      // Confirm button
-      const confirmBtn = this.add.text(0, startY + rows * (tileH + gap) + 30,
+      updateTilePositions();
+
+      // Scroll handling for large tile sets
+      if (needsScroll) {
+        bg.on('pointermove', (_pointer: Phaser.Input.Pointer) => {
+          if (_pointer.isDown) {
+            scrollY = Math.max(0, Math.min(maxScroll, scrollY - _pointer.velocity.y * 0.02));
+            updateTilePositions();
+          }
+        });
+        this.input.on('wheel', (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
+          scrollY = Math.max(0, Math.min(maxScroll, scrollY + deltaY * 0.5));
+          updateTilePositions();
+        });
+      }
+
+      // Confirm button (fixed at bottom)
+      const confirmBtn = this.add.text(0, screenH / 2 - 45,
         pickCount === 0 ? '确定' : `确定 (0/${pickCount})`, {
         fontFamily: 'Courier New, monospace',
         fontSize: '20px',
@@ -1517,6 +1584,28 @@ export class GameScene extends Phaser.Scene {
     const handTileCount = this._hand.tiles.length;
     const meldTileCount = this._playedMelds.reduce((sum, m) => sum + m.tiles.length, 0);
     const totalTiles = handTileCount + meldTileCount;
+
+    // Forced-discard mode: disable 出牌 and 胡, only allow 弃牌
+    if (this._pendingFlowerEffect) {
+      this._playMeldButton.setAlpha(0.3);
+      this._playMeldButton.setStyle({ color: '#666666', backgroundColor: '#222222' });
+      this._playMeldButton.setText('出牌');
+
+      this._huButton.setAlpha(0.3);
+      this._huButton.setStyle({ color: '#666666', backgroundColor: '#222222' });
+
+      // 弃牌 button: always enabled in forced-discard mode if has selection
+      if (hasSelection) {
+        this._discardButton.setAlpha(1);
+        this._discardButton.setStyle({ color: '#ffdd00', backgroundColor: '#555500' });
+        this._discardButton.setText('弃牌 ⚡');
+      } else {
+        this._discardButton.setAlpha(0.7);
+        this._discardButton.setStyle({ color: '#ffdd00', backgroundColor: '#333300' });
+        this._discardButton.setText('弃牌 ⚡');
+      }
+      return;
+    }
 
     // 出牌 button: enabled if valid meld selected
     if (meldType) {
