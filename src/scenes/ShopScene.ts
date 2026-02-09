@@ -417,7 +417,7 @@ export class ShopScene extends Phaser.Scene {
     
     // +50 gold
     this._shop.addGold(50);
-    this._goldText?.setText(`金币: ${this._shop.playerGold}`);
+    this._goldText?.setText(`💰 ${this._shop.playerGold} 金币`);
     
     this.showPurchaseFeedbackText(`🔄 四季轮回!\n所有番型永久+5倍率\n+50金币\n+1张金神牌`);
   }

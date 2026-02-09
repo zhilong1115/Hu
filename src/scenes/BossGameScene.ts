@@ -20,6 +20,7 @@ import { FlowerCardManager } from '../roguelike/FlowerCardManager';
 import { AudioManager } from '../audio/AudioManager';
 import { DeckVariant, DECK_VARIANTS } from '../core/DeckVariant';
 import { GodTileManager } from '../core/GodTileManager';
+import { MaterialManager, materialManager } from '../core/MaterialManager';
 
 /**
  * BossGameScene — Boss encounter gameplay
@@ -147,7 +148,15 @@ export class BossGameScene extends Phaser.Scene {
 
   private initializeGameState(): void {
     // Create shuffled draw pile using deck variant
-    this._drawPile = shuffleTiles(this._deckVariant.createTileSet());
+    let tiles = this._deckVariant.createTileSet();
+
+    // Apply pending deck modifications from season cards
+    const pendingMods = this._flowerCardManager.getPendingDeckMods();
+    if (pendingMods.length > 0) {
+      tiles = this._flowerCardManager.applyDeckMods(tiles);
+    }
+
+    this._drawPile = shuffleTiles(tiles);
     this._discardPile = [];
 
     // Create hand
@@ -323,6 +332,23 @@ export class BossGameScene extends Phaser.Scene {
 
     for (const tile of tiles) {
       this._hand.addTile(tile);
+    }
+
+    // Apply god tile round start effects (Transform bond: apply materials)
+    const effectDescriptions = this._godTileManager.applyRoundStartEffects(this._hand.tiles as Tile[]);
+    effectDescriptions.forEach((desc, index) => {
+      this.time.delayedCall(500 + index * 800, () => {
+        this.showMessage(`🔄 ${desc}`, '#00ff00');
+      });
+    });
+
+    // Apply gold bonus from 财神 (15 gold at round start)
+    const roundStartGoldBonus = this._godTileManager.getRoundStartGoldBonus();
+    if (roundStartGoldBonus > 0) {
+      this._gold += roundStartGoldBonus;
+      this.time.delayedCall(300, () => {
+        this.showMessage(`💰 财神: +${roundStartGoldBonus}金币!`, '#ffd700');
+      });
     }
 
     this._handDisplay.updateDisplay();
@@ -599,6 +625,35 @@ export class BossGameScene extends Phaser.Scene {
   private async onBossDefeated(): Promise<void> {
     // Play win jingle
     AudioManager.getInstance().playSFX('winJingle');
+
+    // Process round end: ice tile melting
+    const allHandTiles = [...this._hand.tiles] as Tile[];
+    const meltedTiles = materialManager.processRoundEnd(allHandTiles);
+    if (meltedTiles.length > 0) {
+      const meltNames = meltedTiles.map(t => t.displayName).join(', ');
+      this.time.delayedCall(300, () => {
+        this.showMessage(`冰牌融化: ${meltNames}`, '#87CEEB');
+      });
+    }
+
+    // Calculate round end gold from god tiles
+    const flowerCardCountForRoundEnd = this._flowerCardManager.getCards().length;
+    const roundEndGold = this._godTileManager.calculateRoundEndGold({
+      currentGold: this._gold,
+      flowerCardCount: flowerCardCountForRoundEnd
+    });
+
+    // Clear flower cards for this round (花牌仅当局有效)
+    this._flowerCardManager.clearAllCards();
+
+    if (roundEndGold.gold !== 0) {
+      this._gold += roundEndGold.gold;
+      for (const desc of roundEndGold.descriptions) {
+        this.time.delayedCall(400, () => {
+          this.showMessage(desc, '#ffd700');
+        });
+      }
+    }
 
     // Show boss defeat animation
     await this._bossHealthBar.showDefeat();
