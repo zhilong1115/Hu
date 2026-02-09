@@ -70,7 +70,19 @@ export class Shop {
     return true;
   }
 
-  public sellGodTile(godTile: GodTile): number {
+  /**
+   * Sell a god tile. Returns sell price, or -1 if selling is blocked (貔貅).
+   * @param godTile The god tile to sell
+   * @param activeGodTiles All active god tiles (to check for 貔貅)
+   */
+  public sellGodTile(godTile: GodTile, activeGodTiles?: readonly GodTile[]): number {
+    // Check if player has 貔貅 (forbidden to sell)
+    if (activeGodTiles) {
+      const hasPixiu = activeGodTiles.some(gt => gt.id === 'wealth_pixiu');
+      if (hasPixiu) {
+        return -1; // Selling blocked
+      }
+    }
     const sellPrice = Math.floor(godTile.cost / 2);
     this._playerGold += sellPrice;
     return sellPrice;

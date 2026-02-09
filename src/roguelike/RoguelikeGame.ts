@@ -278,11 +278,18 @@ export class RoguelikeGame {
     }
   }
 
+  public static readonly MAX_GOD_TILES = 7;
+
   /**
    * Add a god tile to the active collection.
+   * Returns false if at max capacity (7).
    */
-  public addGodTile(godTile: GodTile): void {
+  public addGodTile(godTile: GodTile): boolean {
+    if (this._activeGodTiles.length >= RoguelikeGame.MAX_GOD_TILES) {
+      return false;
+    }
     this._activeGodTiles.push(godTile);
+    return true;
   }
 
   /**

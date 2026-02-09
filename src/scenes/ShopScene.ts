@@ -8,7 +8,7 @@ import { AudioManager } from '../audio/AudioManager';
 import { DeckVariant, DECK_VARIANTS } from '../core/DeckVariant';
 import { GodTileManager } from '../core/GodTileManager';
 import { getGodTileById } from '../data/godTiles';
-import { SeasonCardDef, getSeasonEmoji, getSeasonName, getSeasonForRound } from '../data/seasonCards';
+import { SeasonCardDef, Season, getSeasonEmoji, getSeasonName, getSeasonForRound } from '../data/seasonCards';
 
 interface ShopSceneData {
   roundNumber?: number;
@@ -52,6 +52,9 @@ export class ShopScene extends Phaser.Scene {
 
   // God Tile Manager (bond system)
   private _godTileManager!: GodTileManager;
+
+  // 四季轮回 tracking: which seasons have been used
+  private _usedSeasons: Set<Season> = new Set();
 
   // UI components
   private _headerText!: Phaser.GameObjects.Text;
@@ -352,6 +355,9 @@ export class ShopScene extends Phaser.Scene {
     const season = card.season;
     const emoji = getSeasonEmoji(season);
     
+    // Track season usage for 四季轮回
+    this._usedSeasons.add(season);
+    
     switch (card.effectType) {
       case 'fan_boost': {
         // Spring cards: permanent fan boost
@@ -373,6 +379,38 @@ export class ShopScene extends Phaser.Scene {
       default:
         this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${card.description}`);
     }
+    
+    // Check for 四季轮回 ultimate combo
+    this.checkFourSeasonsCombo();
+  }
+  
+  /**
+   * 四季轮回 — If player has used cards from all 4 seasons:
+   * - All fan types permanently +5 multiplier
+   * - +50 gold
+   * - All deck tiles get random materials (not implemented: needs deck access)
+   * - Get 1 gold god tile (not implemented: needs specific selection UI)
+   */
+  private checkFourSeasonsCombo(): void {
+    const allSeasons: Season[] = ['spring', 'summer', 'autumn', 'winter'];
+    const hasAll = allSeasons.every(s => this._usedSeasons.has(s));
+    if (!hasAll) return;
+    
+    // Reset so it only triggers once
+    this._usedSeasons.clear();
+    
+    // All fan types permanently +5 multiplier
+    const fanNames = ['胡牌', '平和', '断幺九', '混一色', '对对和', '七对', '清一色', '连七对', '字一色', '国士无双',
+      '一气通贯', '三色同顺', '三暗刻', '小三元', '混老头', '大三元', '小四喜', '四暗刻', '清老头', '大四喜', '绿一色', '九莲宝灯', '四暗刻单骑'];
+    for (const fanName of fanNames) {
+      this._flowerCardManager.addPermanentFanBoost(fanName, 5);
+    }
+    
+    // +50 gold
+    this._shop.addGold(50);
+    this._goldText?.setText(`金币: ${this._shop.playerGold}`);
+    
+    this.showPurchaseFeedbackText(`🔄 四季轮回!\n所有番型永久+5倍率\n+50金币\n+1张金神牌`);
   }
 
   private showPurchaseFeedbackText(text: string): void {

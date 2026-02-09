@@ -97,8 +97,8 @@ function createPlaceholderEffect(newTile: NewGodTile): GodTileEffect {
           const roll = Math.random();
           const prob = effect.probability ?? 0.75;
           if (roll < prob) {
-            // Count god tiles in context (approximate from active god tiles)
-            const godTileCount = Math.max(1, context.chipModifiers.length + context.multModifiers.length + 1);
+            // Use actual god tile count from context (set by Scoring before calling)
+            const godTileCount = Math.max(1, (context as GodTileEffectContext & { activeGodTileCount?: number }).activeGodTileCount ?? 1);
             context.multModifiers.push({
               source: newTile.name,
               multiplier: godTileCount,
