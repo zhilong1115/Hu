@@ -355,6 +355,13 @@ export class BossGameScene extends Phaser.Scene {
     }
 
     this._handDisplay.updateDisplay();
+    
+    // Refresh material indicators after effects are applied
+    if (effectDescriptions.length > 0) {
+      this.time.delayedCall(100, () => {
+        this._handDisplay.refreshMaterialIndicators();
+      });
+    }
   }
 
   /* ── Button Actions ─────────────────────────────────────── */
