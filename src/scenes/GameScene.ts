@@ -1737,6 +1737,8 @@ export class GameScene extends Phaser.Scene {
 
     if (this._discardsRemaining === 0) {
       this._discardsRemainingText.setStyle({ color: '#ff4444' });
+    } else {
+      this._discardsRemainingText.setStyle({ color: '#ffffff' });
     }
   }
 
