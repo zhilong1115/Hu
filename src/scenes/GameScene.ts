@@ -1119,15 +1119,22 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Draw new tiles
-    const tilesToDraw = Math.min(selectedTiles.length + extraDraws, this._drawPile.length);
-    for (let i = 0; i < tilesToDraw; i++) {
+    // Draw replacement tiles (same count as discarded)
+    const baseDraw = Math.min(selectedTiles.length, this._drawPile.length);
+    for (let i = 0; i < baseDraw; i++) {
       const tile = this._drawPile.pop()!;
       this._hand.addTile(tile);
     }
     
-    // If we drew extra tiles, player needs to discard the extras
-    // (For now, just add them all - could add a selection UI later)
+    // 浑水摸鱼 extra draws: draw extra tiles, let player see them, then pick
+    // For simplicity, draw extras only up to hand capacity (14)
+    if (extraDraws > 0 && this._drawPile.length > 0) {
+      const maxExtra = Math.min(extraDraws, this._drawPile.length, 14 - this._hand.tiles.length);
+      for (let i = 0; i < maxExtra; i++) {
+        const tile = this._drawPile.pop()!;
+        this._hand.addTile(tile);
+      }
+    }
 
     // Deduct discard (skip if in forced-discard mode — it's a free discard from the flower effect)
     if (!this._pendingFlowerEffect) {
@@ -1191,6 +1198,7 @@ export class GameScene extends Phaser.Scene {
       discardsRemaining: this._discardsRemaining,
       currentScore: this._currentScore,
       targetScore: this._targetScore,
+      roundNumber: this._roundNumber,
       redrawHand: () => this.redrawHand(),
       clearDebuffs: () => this._flowerCardManager.clearDebuffs()
     });

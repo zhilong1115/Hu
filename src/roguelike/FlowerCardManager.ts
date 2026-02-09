@@ -95,6 +95,7 @@ export class FlowerCardManager {
       discardsRemaining: number;
       currentScore: number;
       targetScore: number;
+      roundNumber?: number;
       redrawHand?: () => void;
       clearDebuffs?: () => void;
       drawFromOptions?: (options: Tile[]) => Promise<Tile>;
@@ -559,11 +560,12 @@ export class FlowerCardManager {
     discardsRemaining: number;
     currentScore: number;
     targetScore: number;
+    roundNumber?: number;
     redrawHand?: () => void;
     clearDebuffs?: () => void;
     drawFromOptions?: (options: Tile[]) => Promise<Tile>;
   }): FlowerCardEffectContext {
-    return {
+    const ctx: FlowerCardEffectContext = {
       hand: gameContext.hand,
       selectedTiles: gameContext.selectedTiles,
       drawPile: gameContext.drawPile,
@@ -582,6 +584,11 @@ export class FlowerCardManager {
       clearDebuffs: gameContext.clearDebuffs,
       drawFromOptions: gameContext.drawFromOptions
     };
+    // Pass roundNumber for effects that need it (e.g. 节节高升)
+    if (gameContext.roundNumber) {
+      (ctx as any).roundNumber = gameContext.roundNumber;
+    }
+    return ctx;
   }
 
   public serialize(): any {

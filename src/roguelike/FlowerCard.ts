@@ -224,7 +224,7 @@ export class FlowerCard {
         return (ctx) => { (ctx as any).goldDelta = ((ctx as any).goldDelta || 0) + 15; };
       case 'bamboo_jiejie':
         return (ctx) => {
-          const round = (ctx as any).currentRound || 1;
+          const round = (ctx as any).roundNumber || (ctx as any).currentRound || 1;
           (ctx as any).goldDelta = ((ctx as any).goldDelta || 0) + round * 5;
         };
       case 'bamboo_bian':
