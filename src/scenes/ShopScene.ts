@@ -367,13 +367,22 @@ export class ShopScene extends Phaser.Scene {
         this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${fanName} 永久+${boost}倍率!`);
         break;
       }
-      case 'material_apply':
-      case 'tile_change':
+      case 'material_apply': {
+        // Queue material application for next round's deck
+        this._flowerCardManager.addDeckMod('material_apply', card.effectParams);
+        this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${card.description}\n(下局生效)`);
+        break;
+      }
+      case 'tile_change': {
+        // Queue tile change for next round's deck
+        this._flowerCardManager.addDeckMod(card.effectParams.action, card.effectParams);
+        this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${card.description}\n(下局生效)`);
+        break;
+      }
       case 'deck_modify': {
-        // These require UI interaction (selecting tiles/suits/values)
-        // For now, show a message that the effect was applied
-        // Full UI for these would require a separate overlay
-        this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${card.description}\n(效果已应用)`);
+        // Queue deck modification for next round
+        this._flowerCardManager.addDeckMod(card.effectParams.action, card.effectParams);
+        this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${card.description}\n(下局生效)`);
         break;
       }
       default:

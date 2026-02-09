@@ -12,7 +12,7 @@
 import { FlowerCard, FlowerCardEffectContext } from './FlowerCard';
 import { FlowerCardDef, FlowerCardTrigger, UNUSED_FLOWER_CARD_GOLD } from '../data/flowerCards';
 import { Hand } from '../core/Hand';
-import { Tile } from '../core/Tile';
+import { Tile, TileSuit } from '../core/Tile';
 
 export class FlowerCardManager {
   private inventory: FlowerCard[] = [];
@@ -30,6 +30,9 @@ export class FlowerCardManager {
   private _onWinMultX: number = 1;        // Multiplicative mult bonus
   private _meldGoldBonus: number = 0;     // Extra gold per meld (竹马之交)
   private _permanentFanBoosts: Map<string, number> = new Map(); // Fan name → permanent boost
+
+  // Pending deck modifications from season cards (applied when draw pile is created)
+  private _pendingDeckMods: Array<{ type: string; params: Record<string, any> }> = [];
 
   constructor() {}
 
@@ -235,6 +238,106 @@ export class FlowerCardManager {
     return new Map(this._permanentFanBoosts);
   }
 
+  // ─── Pending Deck Modifications ──────────────────────────────────────────
+
+  public addDeckMod(type: string, params: Record<string, any>): void {
+    this._pendingDeckMods.push({ type, params });
+  }
+
+  public getPendingDeckMods(): Array<{ type: string; params: Record<string, any> }> {
+    return [...this._pendingDeckMods];
+  }
+
+  public clearDeckMods(): void {
+    this._pendingDeckMods = [];
+  }
+
+  /** Apply pending deck modifications to a tile array (draw pile). Returns modified array. */
+  public applyDeckMods(tiles: Tile[]): Tile[] {
+    let result = [...tiles];
+    for (const mod of this._pendingDeckMods) {
+      switch (mod.type) {
+        case 'material_apply': {
+          // Apply material to random tiles in the deck
+          const { material, maxCount } = mod.params;
+          const candidates = result.filter(t => !(t as any).material || (t as any).material === 'none');
+          const shuffled = candidates.sort(() => Math.random() - 0.5);
+          const toApply = shuffled.slice(0, Math.min(maxCount, shuffled.length));
+          for (const tile of toApply) {
+            (tile as any).material = material;
+          }
+          break;
+        }
+        case 'delete_value': {
+          const { value } = mod.params;
+          result = result.filter(t => t.value !== value);
+          break;
+        }
+        case 'delete_suit': {
+          const { suit } = mod.params;
+          result = result.filter(t => t.suit !== suit);
+          break;
+        }
+        case 'delete_honors': {
+          result = result.filter(t => t.suit !== TileSuit.Wind && t.suit !== TileSuit.Dragon);
+          break;
+        }
+        case 'double_terminals': {
+          const terminals = result.filter(t => t.value === 1 || t.value === 9);
+          result.push(...terminals.map(t => ({ ...t, id: `${t.id}-dup-${Math.random()}` })));
+          break;
+        }
+        case 'double_suit': {
+          const { suit } = mod.params;
+          const suitTiles = result.filter(t => t.suit === suit);
+          result.push(...suitTiles.map(t => ({ ...t, id: `${t.id}-dup-${Math.random()}` })));
+          break;
+        }
+        case 'copy': {
+          const { tileId, copies } = mod.params;
+          const original = result.find(t => t.suit === tileId.suit && t.value === tileId.value);
+          if (original) {
+            for (let i = 0; i < copies; i++) {
+              result.push({ ...original, id: `${original.id}-copy-${i}-${Math.random()}` });
+            }
+          }
+          break;
+        }
+        case 'recycle_discards': {
+          // This is handled in GameScene directly since we need access to discard pile
+          break;
+        }
+        case 'keep_3_suits': {
+          const { removeSuit } = mod.params;
+          result = result.filter(t => t.suit !== removeSuit);
+          break;
+        }
+        case 'batch_suit': {
+          const { fromValue, toSuit } = mod.params;
+          for (const tile of result) {
+            if (tile.value === fromValue) {
+              (tile as any).suit = toSuit;
+            }
+          }
+          break;
+        }
+        case 'batch_value_plus': {
+          const { suit: batchSuit } = mod.params;
+          for (const tile of result) {
+            if (tile.suit === batchSuit && tile.value < 9) {
+              (tile as any).value = tile.value + 1;
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    this._pendingDeckMods = [];
+    return result;
+  }
+
   // ─── Legacy Compatibility ────────────────────────────────────────────────
 
   public applyBuffsToScore(baseFan: number): { fan: number; multiplier: number } {
@@ -358,6 +461,7 @@ export class FlowerCardManager {
       fanMultiplier: this.fanMultiplier,
       debuffs: this.debuffs,
       nextGodTileFree: this.nextGodTileFree,
+      pendingDeckMods: this._pendingDeckMods,
     };
   }
 
@@ -385,6 +489,7 @@ export class FlowerCardManager {
     manager.fanMultiplier = data.fanMultiplier || 1.0;
     manager.debuffs = data.debuffs || [];
     manager.nextGodTileFree = data.nextGodTileFree || false;
+    manager._pendingDeckMods = data.pendingDeckMods || [];
 
     return manager;
   }

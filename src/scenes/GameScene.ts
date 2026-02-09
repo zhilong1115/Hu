@@ -201,7 +201,15 @@ export class GameScene extends Phaser.Scene {
 
   private initializeGameState(): void {
     // Create shuffled draw pile using the selected deck variant
-    this._drawPile = shuffleTiles(this._deckVariant.createTileSet());
+    let tiles = this._deckVariant.createTileSet();
+
+    // Apply pending deck modifications from season cards
+    const pendingMods = this._flowerCardManager.getPendingDeckMods();
+    if (pendingMods.length > 0) {
+      tiles = this._flowerCardManager.applyDeckMods(tiles);
+    }
+
+    this._drawPile = shuffleTiles(tiles);
     this._discardPile = [];
 
     // Create hand
@@ -732,8 +740,9 @@ export class GameScene extends Phaser.Scene {
         this.updateDrawPileCount();
         this.showMessage(`杠后补牌: ${drawnTile.displayName}`, '#00ccff');
       }
-      // TODO: Also give a season card
-      this.showMessage('获得季节牌! (待实现)', '#ffd700');
+      // Kong bonus: give a bonus flower card selection
+      this.showMessage('杠牌奖励: 额外花牌!', '#ffd700');
+      await this.showFlowerCardSelection(2);
     }
     
     // Vision bond Lv1 effect: reveal top 2 deck cards after meld
@@ -798,6 +807,40 @@ export class GameScene extends Phaser.Scene {
     // Play fan announce sound
     AudioManager.getInstance().playSFX('fanAnnounce');
 
+    // ── Settle On-Win flower cards (兰/竹马/菊残) ──
+    const chowCount = this._playedMelds.filter(m => m.type === 'chow').length;
+    const pongCount = this._playedMelds.filter(m => m.type === 'pong').length;
+    const onWinResult = this._flowerCardManager.settleOnWinCards({
+      discardsRemaining: this._discardsRemaining,
+      chowCount,
+      pongCount,
+      meldCount: this._playedMelds.length,
+    });
+
+    // Show on-win card descriptions
+    onWinResult.descriptions.forEach((desc, i) => {
+      this.time.delayedCall(200 + i * 600, () => {
+        this.showMessage(`🌺 ${desc}`, '#ff88ff');
+      });
+    });
+
+    // Apply on-win gold bonus
+    if (onWinResult.goldBonus > 0) {
+      this._gold += onWinResult.goldBonus;
+      this.updateGoldDisplay();
+    }
+
+    // Handle 玉兰花开 permanent fan boost
+    const onWinCards = this._flowerCardManager.getOnWinCards();
+    for (const card of onWinCards) {
+      if (card.defId === 'orchid_yulan') {
+        // Add permanent +5 to the fan types that were detected
+        for (const fan of evalResult.fans) {
+          this._flowerCardManager.addPermanentFanBoost(fan.name, 5);
+        }
+      }
+    }
+
     // Calculate score with bonds integration
     let scoreBreakdownWithBonds = Scoring.calculateScoreWithBonds(
       allTiles as Tile[],
@@ -813,6 +856,9 @@ export class GameScene extends Phaser.Scene {
 
     let finalChips = scoreBreakdownWithBonds.totalChips;
     let finalMult = scoreBreakdownWithBonds.totalMult;
+
+    // Apply on-win flower card multiplier bonuses
+    finalMult = (finalMult + onWinResult.multAdd) * onWinResult.multX;
 
     // Apply Red Dora bonuses (if using Red Dora deck)
     let redDoraBonus = 0;
@@ -850,6 +896,9 @@ export class GameScene extends Phaser.Scene {
       const r = scoreBreakdownWithBonds.rouletteResult;
       this.showMessage(`🎲 赌神轮盘: ${r.operation}${r.value}!`, '#ffd700');
     }
+
+    // Update flower card display after on-win settlement consumed cards
+    this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
 
     // Handle material breaking/degradation after hu
     const breakReduction = this._godTileManager.getShatterReduction();
