@@ -4,6 +4,7 @@ import { GodTile } from '../roguelike/GodTile';
 import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
 import { SeasonCardDef, getSeasonEmoji, getSeasonName } from '../data/seasonCards';
+import { MAX_GOD_TILES } from '../core/GodTileManager';
 
 /**
  * ShopUI - Mobile-first UI component for the shop
@@ -521,6 +522,12 @@ export class ShopUI extends Phaser.GameObjects.Container {
   }
 
   private onBuyItem(item: ShopItem): void {
+    // Block god tile purchase if at max capacity
+    if (item.type === 'god_tile' && this._activeGodTiles.length >= MAX_GOD_TILES) {
+      this.showCapacityFullMessage();
+      return;
+    }
+
     const purchasedItem = this._shop.buyItem(item.id);
 
     if (purchasedItem) {
@@ -528,6 +535,46 @@ export class ShopUI extends Phaser.GameObjects.Container {
       this.updateRerollButton();
       this.emit('itemPurchased', item);
     }
+  }
+
+  private showCapacityFullMessage(): void {
+    const centerX = 0;
+    const centerY = -50;
+
+    const message = new Phaser.GameObjects.Text(
+      this.scene,
+      centerX,
+      centerY,
+      `神牌已满 (${MAX_GOD_TILES}/${MAX_GOD_TILES})!`,
+      {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '18px',
+        color: '#ff4444',
+        backgroundColor: '#000000',
+        padding: { x: 15, y: 8 }
+      }
+    );
+    message.setOrigin(0.5);
+    message.setAlpha(0);
+    this.add(message);
+
+    this.scene.tweens.add({
+      targets: message,
+      alpha: 1,
+      y: centerY - 20,
+      duration: 200,
+      ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.time.delayedCall(1000, () => {
+          this.scene.tweens.add({
+            targets: message,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => message.destroy()
+          });
+        });
+      }
+    });
   }
 
   private onSellGodTile(tile: GodTile): void {
