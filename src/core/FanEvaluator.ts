@@ -829,8 +829,10 @@ export class FanEvaluator {
     // 对对和 (all pongs)
     if (checkAllTriplets(decomp)) {
       fans.push(lookupFan('对对和'));
+      // 四暗刻 (all 4 melds are pongs) — stacks with 对对和
+      fans.push(lookupFan('四暗刻'));
     }
-    // 三暗刻 (exactly 3 pongs) — mutually exclusive with 对对和
+    // 三暗刻 (exactly 3 pongs) — mutually exclusive with 对对和/四暗刻
     if (!checkAllTriplets(decomp) && checkThreePongs(decomp)) {
       fans.push(lookupFan('三暗刻'));
     }

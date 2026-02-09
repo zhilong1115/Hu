@@ -127,16 +127,19 @@ export class FlowerCardManager {
     chowCount: number;
     pongCount: number;
     meldCount: number;
+    detectedFanNames?: string[];
   }): {
     multAdd: number;
     multX: number;
     goldBonus: number;
     descriptions: string[];
+    yulanFanNames?: string[];
   } {
     let multAdd = 0;
     let multX = 1;
     let goldBonus = 0;
     const descriptions: string[] = [];
+    let yulanFanNames: string[] | undefined;
 
     const onWinCards = this.getOnWinCards();
 
@@ -174,7 +177,13 @@ export class FlowerCardManager {
           descriptions.push(`${card.name}: ${context.pongCount}个刻子 → 倍率+${pongBonus}`);
           break;
         case 'orchid_yulan':
-          // Permanent fan boost - handled separately
+          // Permanent fan boost — apply to detected fan names
+          if (context.detectedFanNames && context.detectedFanNames.length > 0) {
+            yulanFanNames = [...context.detectedFanNames];
+            for (const fanName of context.detectedFanNames) {
+              this.addPermanentFanBoost(fanName, 5);
+            }
+          }
           descriptions.push(`${card.name}: 胡法基础倍率永久+5`);
           break;
         case 'bamboo_zhuma':
@@ -201,7 +210,7 @@ export class FlowerCardManager {
     // Remove all on-win cards after settlement
     this.inventory = this.inventory.filter(c => c.isInstant());
 
-    return { multAdd, multX, goldBonus, descriptions };
+    return { multAdd, multX, goldBonus, descriptions, yulanFanNames };
   }
 
   /**

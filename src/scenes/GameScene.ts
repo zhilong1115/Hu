@@ -818,6 +818,7 @@ export class GameScene extends Phaser.Scene {
       chowCount,
       pongCount,
       meldCount: this._playedMelds.length,
+      detectedFanNames: evalResult.fans.map(f => f.name),
     });
 
     // Show on-win card descriptions
@@ -831,17 +832,6 @@ export class GameScene extends Phaser.Scene {
     if (onWinResult.goldBonus > 0) {
       this._gold += onWinResult.goldBonus;
       this.updateGoldDisplay();
-    }
-
-    // Handle 玉兰花开 permanent fan boost
-    const onWinCards = this._flowerCardManager.getOnWinCards();
-    for (const card of onWinCards) {
-      if (card.defId === 'orchid_yulan') {
-        // Add permanent +5 to the fan types that were detected
-        for (const fan of evalResult.fans) {
-          this._flowerCardManager.addPermanentFanBoost(fan.name, 5);
-        }
-      }
     }
 
     // Calculate score with bonds integration

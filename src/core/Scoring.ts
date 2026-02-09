@@ -122,12 +122,12 @@ export class Scoring {
     const multModifiers: MultModifier[] = [];
     const goldModifiers: GoldModifier[] = [];
 
-    let additionalMult = materialResult.mult;
-    let multMultiplier = materialResult.multX;
+    let additionalMult = 0;
+    let multMultiplier = 1;
     let totalGold = materialResult.gold;
-    let additionalChips = materialResult.chips;
+    let additionalChips = 0;
 
-    // Add material modifiers to breakdown
+    // Add material modifiers to breakdown (will be accumulated in the loop below)
     if (materialResult.chips > 0) {
       chipModifiers.push({
         source: '材质效果',
