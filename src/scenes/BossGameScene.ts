@@ -973,8 +973,18 @@ export class BossGameScene extends Phaser.Scene {
       this.showMessage(`+${goldDelta} 金币`, '#ffdd00');
     }
 
-    // Remove card from display
-    this._flowerCardDisplay.removeCard(selectedCard);
+    // 细水长流: 20% chance flower card is NOT consumed
+    if (this._godTileManager.hasGodTile('gamble_steady_flow')) {
+      const { success: preserved } = this._godTileManager.rollProbability(0.2);
+      if (preserved) {
+        this._flowerCardManager.addCard(selectedCard);
+        this.showMessage('🎲 细水长流: 花牌未消耗!', '#00ff00');
+      } else {
+        this._flowerCardDisplay.removeCard(selectedCard);
+      }
+    } else {
+      this._flowerCardDisplay.removeCard(selectedCard);
+    }
 
     this.showMessage(`使用了 ${selectedCard.name}`, '#00ff00');
 
@@ -1026,6 +1036,23 @@ export class BossGameScene extends Phaser.Scene {
       mgr.removeDebuff('chrys_qiuju_random_flower');
       await this.showFlowerCardSelection(3);
       this.showMessage('秋菊傲霜: 获得花牌!', '#ffd700');
+    }
+
+    if (mgr.hasDebuff('chrys_caiju_random_god')) {
+      mgr.removeDebuff('chrys_caiju_random_god');
+      const { ALL_GOD_TILES } = await import('../data/godTiles');
+      const available = ALL_GOD_TILES.filter(
+        (gt: any) => !this._godTileManager.hasGodTile(gt.id)
+      );
+      if (available.length > 0) {
+        const randomGod = available[Math.floor(Math.random() * available.length)];
+        this._godTileManager.addGodTile(randomGod);
+        this._activeGodTiles.push(randomGod as any);
+        this._godTileDisplay.setGodTiles(this._activeGodTiles);
+        this.showMessage(`采菊东篱: 获得神牌 ${randomGod.name}!`, '#ffd700');
+      } else {
+        this.showMessage('采菊东篱: 没有可用的神牌', '#aaaaaa');
+      }
     }
 
     if (mgr.hasDebuff('chrys_chiju_2flowers')) {
