@@ -63,6 +63,7 @@ export interface ScoreBreakdown {
   totalChips: number;           // Base score + material chips (for compat with GameScene)
   totalGold: number;
   finalScore: number;
+  guzhuyizhiFailed?: boolean;   // 孤注一掷 failure flag (-50% gold)
 }
 
 // Legacy aliases for compatibility
@@ -226,6 +227,7 @@ export class Scoring {
       totalMult,
       totalGold,
       finalScore,
+      guzhuyizhiFailed: (effectContext as any).guzhuyizhiFailed ?? false,
     };
   }
 
@@ -394,7 +396,8 @@ export class Scoring {
       finalScore,
       multModifiers: [...baseBreakdown.multModifiers, ...bondMultModifiers],
       bondEffects,
-      rouletteResult
+      rouletteResult,
+      guzhuyizhiFailed: baseBreakdown.guzhuyizhiFailed,
     };
   }
 }

@@ -105,11 +105,15 @@ function createPlaceholderEffect(newTile: NewGodTile): GodTileEffect {
               description: `孤注一掷成功! 得分 ×${godTileCount} (神牌数)`
             });
           } else {
+            // Flag for GameScene to deduct 50% of current gold
+            // We use a special marker value; actual deduction happens in scoring integration
             context.goldModifiers.push({
               source: newTile.name,
-              amount: -Math.floor(50), // Penalty placeholder; actual gold handled in GameScene
+              amount: 0, // Actual deduction handled by GameScene (needs current gold)
               description: '孤注一掷失败 -50%金币'
             });
+            // Set flag on context for GameScene to check
+            (context as any).guzhuyizhiFailed = true;
           }
           break;
         }

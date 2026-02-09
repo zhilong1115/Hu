@@ -52,7 +52,7 @@ export function getSeasonName(season: Season): string {
 // ─── 🌱 春牌 — 番型增强 (10张) ──────────────────────────────────────────
 
 export const SPRING_CARDS: SeasonCardDef[] = [
-  { id: 'spring_pihu', season: 'spring', name: '屁胡春', description: '屁胡永久+3倍率', price: 5, effectType: 'fan_boost', effectParams: { fan: '屁胡', boost: 3 } },
+  { id: 'spring_pihu', season: 'spring', name: '屁胡春', description: '屁胡永久+3倍率', price: 5, effectType: 'fan_boost', effectParams: { fan: '胡牌', boost: 3 } },
   { id: 'spring_pinghe', season: 'spring', name: '平和春', description: '平和永久+3倍率', price: 6, effectType: 'fan_boost', effectParams: { fan: '平和', boost: 3 } },
   { id: 'spring_duanyao', season: 'spring', name: '断幺春', description: '断幺九永久+3倍率', price: 7, effectType: 'fan_boost', effectParams: { fan: '断幺九', boost: 3 } },
   { id: 'spring_hunyi', season: 'spring', name: '混一春', description: '混一色永久+3倍率', price: 8, effectType: 'fan_boost', effectParams: { fan: '混一色', boost: 3 } },

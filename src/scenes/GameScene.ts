@@ -569,6 +569,17 @@ export class GameScene extends Phaser.Scene {
     this.updateDrawPileCount();
   }
 
+  /**
+   * Apply 貔貅 gold gain multiplier (+50%) if owned
+   */
+  private applyGoldGainMultiplier(amount: number): number {
+    const mult = this._godTileManager.getGoldGainMultiplier();
+    if (mult > 1 && amount > 0) {
+      return Math.floor(amount * mult);
+    }
+    return amount;
+  }
+
   /* ── Meld Detection ─────────────────────────────────────── */
 
   /**
@@ -693,8 +704,9 @@ export class GameScene extends Phaser.Scene {
       tiles: [...selectedTiles]
     });
 
-    // Add gold reward for meld
-    const meldGoldReward = MELD_GOLD_REWARDS[meldType];
+    // Add gold reward for meld (with 貔貅 multiplier)
+    const baseMeldGold = MELD_GOLD_REWARDS[meldType];
+    const meldGoldReward = this.applyGoldGainMultiplier(baseMeldGold);
     const goldBefore = this._gold;
     this._gold += meldGoldReward;
     console.log(`[Gold] Meld ${meldType} reward: +${meldGoldReward}, Before: ${goldBefore}, After: ${this._gold}`);
@@ -703,9 +715,10 @@ export class GameScene extends Phaser.Scene {
     // Show meld animation with gold reward
     this.showMessage(`${this.getMeldName(meldType)} ×${meld.multiplier} +${meldGoldReward}💰`, '#00ff00');
 
-    // Apply gold bonus from 招财猫 god tile
-    const meldGoldBonus = this._godTileManager.getMeldGoldBonus();
-    if (meldGoldBonus > 0) {
+    // Apply gold bonus from 招财猫 god tile (with 貔貅 multiplier)
+    const baseMeldBonus = this._godTileManager.getMeldGoldBonus();
+    if (baseMeldBonus > 0) {
+      const meldGoldBonus = this.applyGoldGainMultiplier(baseMeldBonus);
       this._gold += meldGoldBonus;
       this.updateGoldDisplay();
       this.showMessage(`招财猫: +${meldGoldBonus}金币!`, '#ffd700');
@@ -891,6 +904,14 @@ export class GameScene extends Phaser.Scene {
       this.showMessage(`🎲 赌神轮盘: ${r.operation}${r.value}!`, '#ffd700');
     }
 
+    // Award gold for unused instant flower cards (+5 gold each per GAME_DESIGN)
+    const unusedCardGold = this._flowerCardManager.getUnusedCardGold();
+    if (unusedCardGold.gold > 0) {
+      this._gold += unusedCardGold.gold;
+      this.updateGoldDisplay();
+      this.showMessage(`未使用花牌奖励: +${unusedCardGold.gold}💰 (${unusedCardGold.count}张×5)`, '#ffd700');
+    }
+
     // Update flower card display after on-win settlement consumed cards
     this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
 
@@ -913,6 +934,13 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(500, () => {
         this.showMessage(`材质变化: ${breakMessages.join(', ')}`, '#ff8800');
       });
+    }
+
+    // Check for 孤注一掷 failure (50% gold penalty)
+    if ((scoreBreakdownWithBonds as any).guzhuyizhiFailed) {
+      const penalty = Math.floor(this._gold * 0.5);
+      this._gold -= penalty;
+      this.showMessage(`孤注一掷失败: -${penalty}金币 (50%)`, '#ff4444');
     }
 
     // Deduct a hand
@@ -1071,10 +1099,11 @@ export class GameScene extends Phaser.Scene {
       this.showMessage(`竹牌弃牌奖励: +${bambooGold}金币`, '#8BC34A');
     }
 
-    // Apply gold bonus from 金蟾 god tile
+    // Apply gold bonus from 金蟾 god tile (with 貔貅 multiplier)
     const discardGoldBonus = this._godTileManager.getDiscardGoldBonus();
     if (discardGoldBonus > 0) {
-      const totalBonus = discardGoldBonus * selectedTiles.length;
+      const baseTotalBonus = discardGoldBonus * selectedTiles.length;
+      const totalBonus = this.applyGoldGainMultiplier(baseTotalBonus);
       this._gold += totalBonus;
       this.updateGoldDisplay();
       this.showMessage(`金蟾: +${totalBonus}金币!`, '#ffd700');
@@ -1823,6 +1852,9 @@ export class GameScene extends Phaser.Scene {
         this.showMessage(`冰牌融化: ${meltNames}`, '#87CEEB');
       });
     }
+
+    // Clear flower cards for this round (花牌仅当局有效)
+    this._flowerCardManager.clearAllCards();
 
     // Calculate round end gold from god tiles
     const roundEndGold = this._godTileManager.calculateRoundEndGold({

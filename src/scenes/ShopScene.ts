@@ -108,7 +108,7 @@ export class ShopScene extends Phaser.Scene {
     this._headerText.setOrigin(0.5);
 
     // Round info
-    this._roundInfoText = this.add.text(centerX, 100, `回合 ${this._roundNumber} 完成 | 下一回合: ${this._roundNumber + 1}`, {
+    this._roundInfoText = this.add.text(centerX, 100, `回合 ${this._roundNumber - 1} 完成 | 下一回合: ${this._roundNumber}`, {
       fontFamily: 'Courier New, monospace',
       fontSize: '16px',
       color: '#aaaaaa'
@@ -466,7 +466,8 @@ export class ShopScene extends Phaser.Scene {
         1: 500, 2: 1200, 3: 2500, 4: 5000,
         5: 10000, 6: 20000, 7: 40000, 8: 80000,
       };
-      const nextRound = this._roundNumber + 1;
+      // _roundNumber is already the next round (incremented by GameScene before passing here)
+      const nextRound = this._roundNumber;
       const nextTargetScore = DIFFICULTY_CURVE[nextRound] ?? Math.floor(80000 * Math.pow(2, nextRound - 8));
 
       // Transition to GameScene
