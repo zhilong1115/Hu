@@ -1238,17 +1238,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     // 细水长流: 20% chance flower card is NOT consumed
-    let cardPreserved = false;
+    // Note: useCard() already removed the card from inventory, so we re-add if preserved
     if (this._godTileManager.hasGodTile('gamble_steady_flow')) {
       const { success: preserved } = this._godTileManager.rollProbability(0.2);
       if (preserved) {
-        cardPreserved = true;
+        // Re-add card to inventory since useCard() already removed it
+        this._flowerCardManager.addCard(selectedCard);
         this.showMessage('🎲 细水长流: 花牌未消耗!', '#00ff00');
+      } else {
+        // Card was already removed from inventory; remove from display too
+        this._flowerCardDisplay.removeCard(selectedCard);
       }
-    }
-
-    if (!cardPreserved) {
-      // Remove card from display with animation
+    } else {
+      // No preservation possible; remove from display (already removed from inventory)
       this._flowerCardDisplay.removeCard(selectedCard);
     }
 
