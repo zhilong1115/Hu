@@ -1839,6 +1839,51 @@ export class GameScene extends Phaser.Scene {
       this.onLose();
       return;
     }
+
+    // Still have hands remaining — deal a new hand
+    this.startNewHand();
+  }
+
+  /**
+   * Deal a fresh hand for the next attempt within the same round.
+   * Keeps score, gold, god tiles, and flower cards intact.
+   */
+  private startNewHand(): void {
+    // Clear existing hand tiles
+    const handTiles = [...this._hand.tiles] as Tile[];
+    for (const tile of handTiles) {
+      this._hand.removeTile(tile);
+    }
+
+    // Reset played melds
+    this._playedMelds = [];
+    this._meldMultiplier = 1;
+
+    // Reset discards
+    this._discardsRemaining = this.INITIAL_DISCARDS;
+    this._hand.resetRoundLimits(0, this._discardsRemaining);
+
+    // Create fresh draw pile
+    let tiles = this._deckVariant.createTileSet();
+    const pendingMods = this._flowerCardManager.getPendingDeckMods();
+    if (pendingMods.length > 0) {
+      tiles = this._flowerCardManager.applyDeckMods(tiles);
+    }
+    this._drawPile = shuffleTiles(tiles);
+    this._discardPile = [];
+
+    // Deal new 14-tile hand
+    this.dealInitialHand();
+
+    // Update all UI
+    this.updateMeldDisplay();
+    this.updateMeldMultiplierDisplay();
+    this.updateHandsRemaining();
+    this.updateDiscardsRemaining();
+    this.updateDrawPileCount();
+    this.updateButtonStates();
+
+    this.showMessage(`新一手! 剩余${this._handsRemaining}手`, '#00ccff');
   }
 
   private onWin(): void {
