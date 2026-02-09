@@ -267,6 +267,17 @@ export class FlowerCardManager {
     return [...this.debuffs];
   }
 
+  public hasDebuff(debuff: string): boolean {
+    return this.debuffs.includes(debuff);
+  }
+
+  public removeDebuff(debuff: string): void {
+    const index = this.debuffs.indexOf(debuff);
+    if (index !== -1) {
+      this.debuffs.splice(index, 1);
+    }
+  }
+
   public isNextGodTileFree(): boolean {
     return this.nextGodTileFree;
   }

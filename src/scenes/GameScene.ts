@@ -988,6 +988,14 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 寒梅傲雪: allow discarding any number (still counts as 1 discard)
+    // (default behavior already allows multi-select, so this is just a flag acknowledgment)
+    const hasUnlimitedDiscard = this._flowerCardManager.hasDebuff('hanmei_unlimited_discard');
+    if (hasUnlimitedDiscard) {
+      this._flowerCardManager.removeDebuff('hanmei_unlimited_discard');
+      this.showMessage('寒梅傲雪: 弃任意数量!', '#ff88ff');
+    }
+
     // Discard selected tiles
     const success = this._hand.discardTiles(selectedTiles);
 
@@ -998,6 +1006,15 @@ export class GameScene extends Phaser.Scene {
 
     // Play discard sound
     AudioManager.getInstance().playSFX('tileDiscard');
+
+    // 暗香浮动: +5 gold per discarded tile
+    if (this._flowerCardManager.hasDebuff('plum_anxiang_gold_discard')) {
+      this._flowerCardManager.removeDebuff('plum_anxiang_gold_discard');
+      const anxiangGold = selectedTiles.length * 5;
+      this._gold += anxiangGold;
+      this.updateGoldDisplay();
+      this.showMessage(`暗香浮动: +${anxiangGold}金币 (${selectedTiles.length}张×5)`, '#ff88ff');
+    }
 
     // Add to discard pile and handle bamboo material discard bonus
     let bambooGold = 0;
@@ -1131,6 +1148,9 @@ export class GameScene extends Phaser.Scene {
     // Show success message
     this.showMessage(`使用了 ${selectedCard.name}`, '#00ff00');
 
+    // Handle pending debuff effects from card usage
+    await this.handlePendingFlowerDebuffs();
+
     // Update UI
     this._handDisplay.updateDisplay();
     this.updateHandsRemaining();
@@ -1158,6 +1178,281 @@ export class GameScene extends Phaser.Scene {
 
     this._handDisplay.updateDisplay();
     this.updateDrawPileCount();
+  }
+
+  /* ── Pending Flower Card Debuff Handling ────────────────── */
+
+  /**
+   * Handle all pending debuff flags set by flower card effects.
+   * Called after onUseFlowerCardClicked processes a card.
+   */
+  private async handlePendingFlowerDebuffs(): Promise<void> {
+    const mgr = this._flowerCardManager;
+
+    // ── 梅花三弄: reveal (discardCount+3) tiles, pick discardCount ──
+    if (mgr.hasDebuff('plum_sannong_pending')) {
+      mgr.removeDebuff('plum_sannong_pending');
+      const discardCount = this.INITIAL_DISCARDS - this._discardsRemaining;
+      const revealCount = discardCount + 3;
+      const pickCount = discardCount;
+
+      if (revealCount > 0 && this._drawPile.length > 0) {
+        const revealed: Tile[] = [];
+        for (let i = 0; i < Math.min(revealCount, this._drawPile.length); i++) {
+          revealed.push(this._drawPile.pop()!);
+        }
+
+        if (pickCount > 0 && pickCount <= revealed.length) {
+          const picked = await this.showTileSelectionOverlay(
+            revealed,
+            pickCount,
+            `梅花三弄: 选择 ${pickCount} 张牌加入手牌`
+          );
+          // Add picked tiles to hand
+          for (const tile of picked) {
+            this._hand.addTile(tile);
+          }
+          // Return unpicked tiles to draw pile
+          const unpicked = revealed.filter(t => !picked.includes(t));
+          this._drawPile.push(...unpicked);
+          this.showMessage(`梅花三弄: 获得 ${pickCount} 张牌!`, '#ff88ff');
+        } else {
+          // No picks needed (0 discards used) - just show and return all
+          this.showMessage(`梅花三弄: 亮出 ${revealed.length} 张牌`, '#ff88ff');
+          await this.showTileSelectionOverlay(revealed, 0, '梅花三弄: 查看牌堆顶牌');
+          this._drawPile.push(...revealed);
+        }
+        this._handDisplay.updateDisplay();
+        this.updateDrawPileCount();
+      }
+    }
+
+    // ── 一剪梅: discard 1, search for exact tile ──
+    if (mgr.hasDebuff('plum_yijian_pending')) {
+      mgr.removeDebuff('plum_yijian_pending');
+      // Player must select 1 tile to discard first
+      this.showMessage('一剪梅: 请选择1张手牌弃掉，然后从牌库选取1张', '#ff88ff');
+      const discarded = await this.showTileSelectionFromHand(1, '一剪梅: 选择1张牌弃掉');
+      if (discarded.length === 1) {
+        this._hand.removeTile(discarded[0]);
+        this._discardPile.push(discarded[0]);
+        // Now let player pick any tile from the draw pile
+        if (this._drawPile.length > 0) {
+          const allDrawPile = [...this._drawPile];
+          // Sort for easier browsing
+          allDrawPile.sort((a, b) => {
+            if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
+            return a.value - b.value;
+          });
+          const picked = await this.showTileSelectionOverlay(
+            allDrawPile,
+            1,
+            '一剪梅: 从牌库选择1张牌'
+          );
+          if (picked.length === 1) {
+            // Remove picked tile from draw pile
+            const idx = this._drawPile.findIndex(t => t === picked[0]);
+            if (idx !== -1) this._drawPile.splice(idx, 1);
+            this._hand.addTile(picked[0]);
+            // Shuffle draw pile after searching
+            for (let i = this._drawPile.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [this._drawPile[i], this._drawPile[j]] = [this._drawPile[j], this._drawPile[i]];
+            }
+            this.showMessage(`一剪梅: 获得 ${picked[0].displayName}!`, '#ff88ff');
+          }
+        }
+        this._handDisplay.updateDisplay();
+        this.updateDrawPileCount();
+      }
+    }
+
+    // ── 秋菊傲霜: random flower card ──
+    if (mgr.hasDebuff('chrys_qiuju_random_flower')) {
+      mgr.removeDebuff('chrys_qiuju_random_flower');
+      await this.showFlowerCardSelection(3);
+      this.showMessage('秋菊傲霜: 获得花牌!', '#ffd700');
+    }
+
+    // ── 持菊问道: 2 flower cards ──
+    if (mgr.hasDebuff('chrys_chiju_2flowers')) {
+      mgr.removeDebuff('chrys_chiju_2flowers');
+      await this.showFlowerCardSelection(3);
+      await this.showFlowerCardSelection(3);
+      this.showMessage('持菊问道: 获得2张花牌!', '#ffd700');
+    }
+
+    // ── 采菊东篱: random god tile ──
+    if (mgr.hasDebuff('chrys_caiju_random_god')) {
+      mgr.removeDebuff('chrys_caiju_random_god');
+      // Add a random god tile from the pool
+      const { ALL_GOD_TILES } = await import('../data/godTiles');
+      const available = ALL_GOD_TILES.filter(
+        gt => !this._godTileManager.hasGodTile(gt.id)
+      );
+      if (available.length > 0) {
+        const randomGod = available[Math.floor(Math.random() * available.length)];
+        this._godTileManager.addGodTile(randomGod);
+        this._activeGodTiles.push(randomGod as any);
+        this._godTileDisplay.setGodTiles(this._activeGodTiles);
+        this.showMessage(`采菊东篱: 获得神牌 ${randomGod.name}!`, '#ffd700');
+      } else {
+        this.showMessage('采菊东篱: 没有可用的神牌', '#aaaaaa');
+      }
+    }
+
+    // ── 黄菊满地: random material on 1 random hand tile ──
+    if (mgr.hasDebuff('chrys_huangju_random_material')) {
+      mgr.removeDebuff('chrys_huangju_random_material');
+      this.applyRandomMaterialToTiles(1);
+    }
+
+    // ── 金菊绽放: random material on up to 3 random tiles ──
+    if (mgr.hasDebuff('chrys_jinju_3materials')) {
+      mgr.removeDebuff('chrys_jinju_3materials');
+      this.applyRandomMaterialToTiles(3);
+    }
+
+    // ── 满城尽带黄金甲: all hand tiles get gold material ──
+    if (mgr.hasDebuff('chrys_huangjin_all_gold')) {
+      mgr.removeDebuff('chrys_huangjin_all_gold');
+      const tiles = this._hand.tiles as Tile[];
+      for (const tile of tiles) {
+        (tile as any).material = 'gold';
+      }
+      this._handDisplay.updateDisplay();
+      this._handDisplay.refreshMaterialIndicators();
+      this.showMessage('满城尽带黄金甲: 所有手牌变为金牌!', '#ffd700');
+    }
+  }
+
+  /**
+   * Apply random materials to N random hand tiles
+   */
+  private applyRandomMaterialToTiles(count: number): void {
+    const randomMaterials: string[] = ['bronze', 'silver', 'gold', 'bamboo', 'ice', 'glass', 'jade'];
+    const tiles = [...this._hand.tiles] as Tile[];
+    // Shuffle and pick up to count tiles that don't have a material
+    const candidates = tiles.filter(t => !(t as any).material || (t as any).material === 'none');
+    const shuffled = candidates.sort(() => Math.random() - 0.5);
+    const toEnhance = shuffled.slice(0, Math.min(count, shuffled.length));
+
+    for (const tile of toEnhance) {
+      const mat = randomMaterials[Math.floor(Math.random() * randomMaterials.length)];
+      (tile as any).material = mat;
+    }
+
+    if (toEnhance.length > 0) {
+      this._handDisplay.updateDisplay();
+      this._handDisplay.refreshMaterialIndicators();
+      this.showMessage(`添加材质到 ${toEnhance.length} 张牌!`, '#ffd700');
+    }
+  }
+
+  /**
+   * Show a tile selection overlay - display tiles and let player pick N
+   */
+  private showTileSelectionOverlay(tiles: Tile[], pickCount: number, title: string): Promise<Tile[]> {
+    return new Promise((resolve) => {
+      const centerX = this.scale.width / 2;
+      const centerY = this.scale.height / 2;
+      const container = this.add.container(centerX, centerY);
+      container.setDepth(1001);
+
+      // Dark bg
+      const bg = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.85);
+      bg.setInteractive();
+      container.add(bg);
+
+      // Title
+      const titleText = this.add.text(0, -200, title, {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '22px',
+        color: '#ffd700',
+        wordWrap: { width: this.scale.width - 40 },
+        align: 'center'
+      }).setOrigin(0.5);
+      container.add(titleText);
+
+      const selected: Set<number> = new Set();
+      const tileButtons: Phaser.GameObjects.Rectangle[] = [];
+      const tileTexts: Phaser.GameObjects.Text[] = [];
+
+      // Layout tiles in rows
+      const cols = Math.min(tiles.length, 7);
+      const rows = Math.ceil(tiles.length / cols);
+      const tileW = 55;
+      const tileH = 75;
+      const gap = 8;
+      const startX = -(cols * (tileW + gap) - gap) / 2 + tileW / 2;
+      const startY = -80;
+
+      tiles.forEach((tile, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = startX + col * (tileW + gap);
+        const y = startY + row * (tileH + gap);
+
+        const tileBg = this.add.rectangle(x, y, tileW, tileH, 0x224422)
+          .setStrokeStyle(2, 0x888888);
+        tileBg.setInteractive({ useHandCursor: true });
+        container.add(tileBg);
+        tileButtons.push(tileBg);
+
+        const tileLabel = this.add.text(x, y, tile.displayName, {
+          fontFamily: 'Courier New, monospace',
+          fontSize: '14px',
+          color: '#ffffff',
+          align: 'center',
+          wordWrap: { width: tileW - 4 }
+        }).setOrigin(0.5);
+        container.add(tileLabel);
+        tileTexts.push(tileLabel);
+
+        tileBg.on('pointerdown', () => {
+          if (pickCount === 0) return; // View only mode
+          if (selected.has(i)) {
+            selected.delete(i);
+            tileBg.setFillStyle(0x224422);
+            tileBg.setStrokeStyle(2, 0x888888);
+          } else if (selected.size < pickCount) {
+            selected.add(i);
+            tileBg.setFillStyle(0x446644);
+            tileBg.setStrokeStyle(3, 0x00ff00);
+          }
+          confirmBtn.setText(pickCount === 0 ? '确定' : `确定 (${selected.size}/${pickCount})`);
+        });
+      });
+
+      // Confirm button
+      const confirmBtn = this.add.text(0, startY + rows * (tileH + gap) + 30,
+        pickCount === 0 ? '确定' : `确定 (0/${pickCount})`, {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '20px',
+        color: '#ffffff',
+        backgroundColor: '#336633',
+        padding: { x: 30, y: 12 }
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      container.add(confirmBtn);
+
+      confirmBtn.on('pointerdown', () => {
+        if (pickCount > 0 && selected.size !== pickCount) {
+          this.showMessage(`请选择 ${pickCount} 张牌`, '#ff4444');
+          return;
+        }
+        const pickedTiles = Array.from(selected).map(idx => tiles[idx]);
+        container.destroy();
+        resolve(pickedTiles);
+      });
+    });
+  }
+
+  /**
+   * Show hand tile selection - let player pick N tiles from their hand
+   */
+  private showTileSelectionFromHand(pickCount: number, title: string): Promise<Tile[]> {
+    const handTiles = [...this._hand.tiles] as Tile[];
+    return this.showTileSelectionOverlay(handTiles, pickCount, title);
   }
 
   /* ── UI Updates ────────────────────────────────────────── */
