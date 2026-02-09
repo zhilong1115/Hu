@@ -628,6 +628,49 @@ export class BossGameScene extends Phaser.Scene {
       this.onPlayerDefeated();
       return;
     }
+
+    // Still have hands remaining — deal a new hand
+    this.startNewHand();
+  }
+
+  /**
+   * Deal a fresh hand for the next attempt within the same boss round.
+   */
+  private startNewHand(): void {
+    // Clear existing hand tiles
+    const handTiles = [...this._hand.tiles] as Tile[];
+    for (const tile of handTiles) {
+      this._hand.removeTile(tile);
+    }
+
+    // Reset discards
+    this._discardsRemaining = this.INITIAL_DISCARDS;
+    this._hand.resetRoundLimits(0, this._discardsRemaining);
+
+    // Create fresh draw pile
+    let tiles = this._deckVariant.createTileSet();
+    const pendingMods = this._flowerCardManager.getPendingDeckMods();
+    if (pendingMods.length > 0) {
+      tiles = this._flowerCardManager.applyDeckMods(tiles);
+    }
+    this._drawPile = shuffleTiles(tiles);
+    this._discardPile = [];
+
+    // Deal new 14-tile hand
+    this.dealInitialHand();
+
+    // Re-initialize Boss庄 with new hand/draw pile
+    this._bossBlind.initialize({
+      hand: this._hand,
+      drawPile: this._drawPile
+    });
+
+    // Update all UI
+    this.updateHandsRemaining();
+    this.updateDiscardsRemaining();
+    this.updateButtonStates();
+
+    this.showMessage(`新一手! 剩余${this._handsRemaining}手`, '#00ccff');
   }
 
   private async onBossDefeated(): Promise<void> {
