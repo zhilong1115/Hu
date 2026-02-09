@@ -1,6 +1,14 @@
-import { Tile, TileSuit, TileValue } from '../core/Tile';
-import { Hand } from '../core/Hand';
-import { Fan } from '../core/FanEvaluator';
+/**
+ * FlowerCard v5.1 — Runtime flower card instance
+ * 
+ * Two types:
+ * - ⚡ Instant: Manual use, costs gold
+ * - 🎯 On-Win: Auto-trigger on hu, settles left→right, reorderable
+ * 
+ * Unused cards give +5 gold on win then disappear.
+ */
+
+import { FlowerCardDef, FlowerCardTrigger } from '../data/flowerCards';
 
 export enum FlowerCardType {
   BAMBOO = 'bamboo',
@@ -9,36 +17,18 @@ export enum FlowerCardType {
   CHRYSANTHEMUM = 'chrysanthemum'
 }
 
-// Effect context passed to Flower Card effects
-export interface FlowerCardEffectContext {
-  // Game state
-  hand: Hand;
-  selectedTiles: Tile[];
-  drawPile: Tile[];
-  discardPile: Tile[];
-
-  // Round state
-  handsRemaining: number;
-  discardsRemaining: number;
-  currentScore: number;
-  targetScore: number;
-
-  // Buffs/debuffs (mutated by effects)
-  damageReduction: number;
-  nextAttackImmune: boolean;
-  bonusFan: number;
-  fanMultiplier: number;
-  debuffs: string[];
-
-  // Shop state (for shop-related effects)
-  nextGodTileFree?: boolean;
-
-  // Callbacks for complex actions
-  redrawHand?: () => void;
-  clearDebuffs?: () => void;
-  drawFromOptions?: (options: Tile[]) => Promise<Tile>;
+export interface FlowerCardInstance {
+  id: string;           // Unique instance ID
+  defId: string;        // Reference to FlowerCardDef.id
+  type: FlowerCardType;
+  trigger: FlowerCardTrigger;
+  name: string;
+  description: string;
+  cost: number;
+  used: boolean;        // Whether this card has been used this round
 }
 
+// Legacy compatibility exports
 export interface FlowerEffect {
   name: string;
   description: string;
@@ -46,6 +36,45 @@ export interface FlowerEffect {
   effect: (context: FlowerCardEffectContext) => void | Promise<void>;
 }
 
+export interface FlowerCardEffectContext {
+  hand: any;
+  selectedTiles: any[];
+  drawPile: any[];
+  discardPile: any[];
+  handsRemaining: number;
+  discardsRemaining: number;
+  currentScore: number;
+  targetScore: number;
+  damageReduction: number;
+  nextAttackImmune: boolean;
+  bonusFan: number;
+  fanMultiplier: number;
+  debuffs: string[];
+  nextGodTileFree?: boolean;
+  redrawHand?: () => void;
+  clearDebuffs?: () => void;
+  drawFromOptions?: (options: any[]) => Promise<any>;
+}
+
+/**
+ * Create a FlowerCardInstance from a FlowerCardDef
+ */
+export function createFlowerCardInstance(def: FlowerCardDef): FlowerCardInstance {
+  return {
+    id: `${def.id}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    defId: def.id,
+    type: def.type,
+    trigger: def.trigger,
+    name: def.name,
+    description: def.description,
+    cost: def.cost,
+    used: false,
+  };
+}
+
+/**
+ * Legacy FlowerCard class for backward compatibility with existing UI code
+ */
 export class FlowerCard {
   public readonly type: FlowerCardType;
   public readonly name: string;
@@ -53,6 +82,8 @@ export class FlowerCard {
   public readonly effects: FlowerEffect[];
   public readonly cost: number;
   public readonly rarity: string;
+  public readonly trigger: FlowerCardTrigger;
+  public readonly defId: string;
 
   constructor(
     type: FlowerCardType,
@@ -60,7 +91,9 @@ export class FlowerCard {
     description: string,
     effects: FlowerEffect[],
     cost: number,
-    rarity: string
+    rarity: string,
+    trigger: FlowerCardTrigger = 'instant',
+    defId: string = ''
   ) {
     this.type = type;
     this.name = name;
@@ -68,11 +101,11 @@ export class FlowerCard {
     this.effects = effects;
     this.cost = cost;
     this.rarity = rarity;
+    this.trigger = trigger;
+    this.defId = defId;
   }
 
-  public canPlay(context: FlowerCardEffectContext): boolean {
-    // Check if the flower card can be played based on current game state
-    // Most flower cards can always be played, but some have specific requirements
+  public canPlay(_context: FlowerCardEffectContext): boolean {
     return true;
   }
 
@@ -82,18 +115,10 @@ export class FlowerCard {
     }
   }
 
-  /**
-   * Check if this flower card requires tile selection
-   */
   public requiresSelection(): boolean {
-    // Transform cards typically need tile selection
-    return this.type === FlowerCardType.CHRYSANTHEMUM &&
-           this.name.includes('九九重阳');
+    return false;
   }
 
-  /**
-   * Get the appropriate message when card cannot be played
-   */
   public getCannotPlayMessage(): string {
     return '无法使用此花牌';
   }
@@ -107,8 +132,44 @@ export class FlowerCard {
       case FlowerCardType.BAMBOO: return '🎋';
       case FlowerCardType.PLUM: return '🌸';
       case FlowerCardType.ORCHID: return '🌺';
-      case FlowerCardType.CHRYSANTHEMUM: return '🌻';
+      case FlowerCardType.CHRYSANTHEMUM: return '🏵️';
       default: return '🌼';
     }
   }
+
+  public isInstant(): boolean {
+    return this.trigger === 'instant';
+  }
+
+  public isOnWin(): boolean {
+    return this.trigger === 'on_win';
+  }
+
+  /**
+   * Create a FlowerCard from a FlowerCardDef
+   */
+  public static fromDef(def: FlowerCardDef): FlowerCard {
+    // Determine rarity based on cost
+    let rarity = 'common';
+    if (def.cost >= 10) rarity = 'epic';
+    else if (def.cost >= 6) rarity = 'rare';
+
+    return new FlowerCard(
+      def.type,
+      def.name,
+      def.description,
+      [], // Effects handled by game logic now
+      def.cost,
+      rarity,
+      def.trigger,
+      def.id
+    );
+  }
+}
+
+/**
+ * Legacy helper for backward compatibility
+ */
+export function createFlowerCardFromData(data: FlowerCardDef): FlowerCard {
+  return FlowerCard.fromDef(data);
 }

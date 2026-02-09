@@ -1,18 +1,16 @@
 import { GodTile, GodTileRarity } from './GodTile';
-import { FlowerCard, FlowerCardType } from './FlowerCard';
+import { FlowerCard } from './FlowerCard';
 import { 
-  ALL_GOD_TILES, 
   GodTile as NewGodTileData, 
   GodTileRarity as NewGodTileRarity,
   getPurchasableGodTiles,
-  getGodTilesByRarity 
 } from '../data/godTiles';
-import { ALL_FLOWER_CARDS, FlowerCardData, createFlowerCardFromData } from '../data/flowerCards';
+import { SeasonCardDef, generateSeasonShopCards } from '../data/seasonCards';
 
 export interface ShopItem {
   id: string;
-  type: 'god_tile' | 'flower_card';
-  item: GodTile | FlowerCard;
+  type: 'god_tile' | 'flower_card' | 'season_card';
+  item: GodTile | FlowerCard | SeasonCardDef;
   cost: number;
   available: boolean;
 }
@@ -20,12 +18,14 @@ export interface ShopItem {
 export class Shop {
   private _items: ShopItem[] = [];
   private _playerGold: number = 0;
-  private _refreshCost: number = 3;  // Increased from 2
-  private _baseRefreshCost: number = 3;  // Increased from 2
+  private _refreshCost: number = 3;
+  private _baseRefreshCost: number = 3;
   private _refreshCount: number = 0;
+  private _roundNumber: number = 1;
 
-  constructor(playerGold: number = 15) {  // Increased default from 10
+  constructor(playerGold: number = 15, roundNumber: number = 1) {
     this._playerGold = playerGold;
+    this._roundNumber = roundNumber;
     this.generateShopItems();
   }
 
@@ -41,7 +41,11 @@ export class Shop {
     return this._refreshCost;
   }
 
-  public buyItem(itemId: string): GodTile | FlowerCard | null {
+  public get roundNumber(): number {
+    return this._roundNumber;
+  }
+
+  public buyItem(itemId: string): GodTile | FlowerCard | SeasonCardDef | null {
     const item = this._items.find(i => i.id === itemId);
 
     if (!item || !item.available || this._playerGold < item.cost) {
@@ -60,8 +64,6 @@ export class Shop {
 
     this._playerGold -= this._refreshCost;
     this._refreshCount++;
-
-    // Increment refresh cost: 3, 5, 7, 9... (slower scaling)
     this._refreshCost = this._baseRefreshCost + (this._refreshCount * 2);
 
     this.generateShopItems();
@@ -69,7 +71,6 @@ export class Shop {
   }
 
   public sellGodTile(godTile: GodTile): number {
-    // Sell for half the cost
     const sellPrice = Math.floor(godTile.cost / 2);
     this._playerGold += sellPrice;
     return sellPrice;
@@ -86,28 +87,26 @@ export class Shop {
   private generateShopItems(): void {
     this._items = [];
 
-    // Generate 3-5 random shop items
-    const itemCount = 3 + Math.floor(Math.random() * 3);
+    // Generate 3-4 god tiles
+    const godTileCount = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < godTileCount; i++) {
+      this._items.push(this.createGodTileItem());
+    }
 
-    for (let i = 0; i < itemCount; i++) {
-      const itemType = Math.random();
-      let item: ShopItem;
-
-      if (itemType < 0.65) {
-        // 65% chance: God Tile
-        item = this.createGodTileItem();
-      } else {
-        // 35% chance: Flower Card
-        item = this.createFlowerCardItem();
-      }
-
-      this._items.push(item);
+    // Generate 1-2 season cards based on current round
+    const seasonCards = generateSeasonShopCards(this._roundNumber, 2);
+    for (const sc of seasonCards) {
+      this._items.push({
+        id: `season-${sc.id}-${Date.now()}-${Math.random()}`,
+        type: 'season_card',
+        item: sc,
+        cost: sc.price,
+        available: true,
+      });
     }
   }
 
   private createGodTileItem(): ShopItem {
-    // Weight rarities: 50% green, 30% blue, 15% purple, 5% gold
-    // (matches the new god tile design doc)
     const rand = Math.random();
     let newRarity: NewGodTileRarity;
 
@@ -121,15 +120,11 @@ export class Shop {
       newRarity = NewGodTileRarity.GOLD;
     }
 
-    // Get purchasable tiles of that rarity (excludes auto-unlock gold tiles)
     const purchasable = getPurchasableGodTiles();
     const tilesOfRarity = purchasable.filter(t => t.rarity === newRarity);
-    
-    // Fallback to any purchasable tile if no tiles of that rarity
     const availableTiles = tilesOfRarity.length > 0 ? tilesOfRarity : purchasable;
     const tileData = availableTiles[Math.floor(Math.random() * availableTiles.length)];
     
-    // Create GodTile instance from new format
     const godTile = GodTile.fromNewFormat(tileData);
 
     return {
@@ -137,35 +132,6 @@ export class Shop {
       type: 'god_tile',
       item: godTile,
       cost: tileData.price,
-      available: true
-    };
-  }
-
-  private createFlowerCardItem(): ShopItem {
-    // Weight rarities: 60% common, 30% rare, 8% epic, 2% legendary
-    const rand = Math.random();
-    let rarity: string;
-
-    if (rand < 0.60) {
-      rarity = 'common';
-    } else if (rand < 0.90) {
-      rarity = 'rare';
-    } else if (rand < 0.98) {
-      rarity = 'epic';
-    } else {
-      rarity = 'legendary';
-    }
-
-    // Pick random flower card of that rarity
-    const cardsOfRarity = ALL_FLOWER_CARDS.filter(c => c.rarity === rarity);
-    const cardData = cardsOfRarity[Math.floor(Math.random() * cardsOfRarity.length)];
-    const flowerCard = createFlowerCardFromData(cardData);
-
-    return {
-      id: `flower-${Date.now()}-${Math.random()}`,
-      type: 'flower_card',
-      item: flowerCard,
-      cost: cardData.cost,
       available: true
     };
   }

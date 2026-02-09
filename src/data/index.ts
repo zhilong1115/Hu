@@ -34,8 +34,14 @@ export * from './godTilesLegacy';
 // Fans (番型)
 export * from './fans';
 
-// Flower Cards
+// Flower Cards (v5.1)
 export * from './flowerCards';
+
+// Season Cards
+export * from './seasonCards';
+
+// Materials
+export * from './materials';
 
 // Bosses
 export * from './bosses';

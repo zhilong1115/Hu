@@ -13,7 +13,8 @@ import { BondStatusUI } from '../ui/BondStatusUI';
 import { GodTile } from '../roguelike/GodTile';
 import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
-import { ALL_FLOWER_CARDS, createFlowerCardFromData } from '../data/flowerCards';
+import { ALL_FLOWER_CARDS, FlowerCardDef } from '../data/flowerCards';
+import { createFlowerCardFromData } from '../roguelike/FlowerCard';
 import { DeckVariant, DECK_VARIANTS, isRedDoraTile, getRedDoraChipBonus } from '../core/DeckVariant';
 import { AudioManager } from '../audio/AudioManager';
 import { GodTileManager } from '../core/GodTileManager';
@@ -173,11 +174,6 @@ export class GameScene extends Phaser.Scene {
       this._flowerCardManager = data.flowerCardManager;
     } else {
       this._flowerCardManager = new FlowerCardManager();
-      // For testing: add a starter flower card
-      const starterCards = ALL_FLOWER_CARDS.filter(c => c.rarity === 'common');
-      if (starterCards.length > 0) {
-        this._flowerCardManager.addCard(createFlowerCardFromData(starterCards[0]));
-      }
     }
 
     this._gold = data?.gold ?? 10;
@@ -394,9 +390,8 @@ export class GameScene extends Phaser.Scene {
 
   private showFlowerCardSelection(count: number, includeSeason: boolean = false): Promise<FlowerCard> {
     return new Promise((resolve) => {
-      // Get random flower cards
-      const availableCards = ALL_FLOWER_CARDS.filter(c => c.rarity === 'common' || c.rarity === 'rare');
-      const shuffled = [...availableCards].sort(() => Math.random() - 0.5);
+      // Get random flower cards from the pool
+      const shuffled = [...ALL_FLOWER_CARDS].sort(() => Math.random() - 0.5);
       const options = shuffled.slice(0, count).map(data => createFlowerCardFromData(data));
 
       // Clear previous card buttons

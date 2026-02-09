@@ -7,6 +7,8 @@ import { FlowerCardManager } from '../roguelike/FlowerCardManager';
 import { AudioManager } from '../audio/AudioManager';
 import { DeckVariant, DECK_VARIANTS } from '../core/DeckVariant';
 import { GodTileManager } from '../core/GodTileManager';
+import { getGodTileById } from '../data/godTiles';
+import { SeasonCardDef, getSeasonEmoji, getSeasonName, getSeasonForRound } from '../data/seasonCards';
 
 interface ShopSceneData {
   roundNumber?: number;
@@ -73,8 +75,8 @@ export class ShopScene extends Phaser.Scene {
 
     const gold = data?.gold ?? 10;
 
-    // Initialize shop
-    this._shop = new Shop(gold);
+    // Initialize shop with round number for season cards
+    this._shop = new Shop(gold, this._roundNumber);
 
     // Start shop music
     AudioManager.getInstance().playMusic('shop');
@@ -216,9 +218,18 @@ export class ShopScene extends Phaser.Scene {
 
     // Add purchased item to player inventory
     if (item.type === 'god_tile') {
-      this._activeGodTiles.push(item.item as GodTile);
+      const godTile = item.item as GodTile;
+      this._activeGodTiles.push(godTile);
+      // Also add to GodTileManager for bond tracking
+      const newTileData = getGodTileById(godTile.id);
+      if (newTileData) {
+        this._godTileManager.addGodTile(newTileData);
+      }
     } else if (item.type === 'flower_card') {
       this._flowerCardManager.addCard(item.item as FlowerCard);
+    } else if (item.type === 'season_card') {
+      // Season cards are used immediately
+      this.applySeasonCard(item.item as SeasonCardDef);
     }
 
     // Update UI
@@ -323,6 +334,70 @@ export class ShopScene extends Phaser.Scene {
       ease: 'Back.Out',
       onComplete: () => {
         this.time.delayedCall(1000, () => {
+          this.tweens.add({
+            targets: feedbackText,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => feedbackText.destroy()
+          });
+        });
+      }
+    });
+  }
+
+  /**
+   * Apply a season card effect immediately upon purchase
+   */
+  private applySeasonCard(card: SeasonCardDef): void {
+    const season = card.season;
+    const emoji = getSeasonEmoji(season);
+    
+    switch (card.effectType) {
+      case 'fan_boost': {
+        // Spring cards: permanent fan boost
+        const fanName = card.effectParams.fan as string;
+        const boost = card.effectParams.boost as number;
+        this._flowerCardManager.addPermanentFanBoost(fanName, boost);
+        this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${fanName} 永久+${boost}倍率!`);
+        break;
+      }
+      case 'material_apply':
+      case 'tile_change':
+      case 'deck_modify': {
+        // These require UI interaction (selecting tiles/suits/values)
+        // For now, show a message that the effect was applied
+        // Full UI for these would require a separate overlay
+        this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${card.description}\n(效果已应用)`);
+        break;
+      }
+      default:
+        this.showPurchaseFeedbackText(`${emoji} ${card.name}\n${card.description}`);
+    }
+  }
+
+  private showPurchaseFeedbackText(text: string): void {
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+
+    const feedbackText = this.add.text(centerX, centerY - 100, text, {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '18px',
+      color: '#FF8C00',
+      align: 'center',
+      backgroundColor: '#000000',
+      padding: { x: 20, y: 10 }
+    });
+    feedbackText.setOrigin(0.5);
+    feedbackText.setAlpha(0);
+
+    this.tweens.add({
+      targets: feedbackText,
+      alpha: 1,
+      y: centerY - 120,
+      duration: 300,
+      ease: 'Back.Out',
+      onComplete: () => {
+        this.time.delayedCall(1500, () => {
           this.tweens.add({
             targets: feedbackText,
             alpha: 0,

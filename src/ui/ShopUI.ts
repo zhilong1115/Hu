@@ -3,6 +3,7 @@ import { Shop, ShopItem } from '../roguelike/Shop';
 import { GodTile } from '../roguelike/GodTile';
 import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
+import { SeasonCardDef, getSeasonEmoji, getSeasonName } from '../data/seasonCards';
 
 /**
  * ShopUI - Mobile-first UI component for the shop
@@ -192,11 +193,13 @@ export class ShopUI extends Phaser.GameObjects.Container {
 
     // Get item info
     const isGodTile = item.type === 'god_tile';
+    const isSeasonCard = item.type === 'season_card';
     const godTile = isGodTile ? (item.item as GodTile) : null;
-    const flowerCard = !isGodTile ? (item.item as FlowerCard) : null;
+    const flowerCard = (!isGodTile && !isSeasonCard) ? (item.item as FlowerCard) : null;
+    const seasonCard = isSeasonCard ? (item.item as SeasonCardDef) : null;
 
-    const itemName = isGodTile ? godTile!.displayName : flowerCard!.name;
-    const rarityColor = isGodTile ? godTile!.getRarityColor() : this.getFlowerCardRarityColor(flowerCard!.rarity);
+    const itemName = isGodTile ? godTile!.displayName : isSeasonCard ? seasonCard!.name : flowerCard!.name;
+    const rarityColor = isGodTile ? godTile!.getRarityColor() : isSeasonCard ? '#FF8C00' : this.getFlowerCardRarityColor(flowerCard!.rarity);
 
     // Card background
     const bg = new Phaser.GameObjects.Rectangle(
@@ -215,7 +218,7 @@ export class ShopUI extends Phaser.GameObjects.Container {
       this.scene,
       0,
       -cardHeight / 2 + 15,
-      isGodTile ? '神' : flowerCard!.getFlowerSymbol(),
+      isGodTile ? '神' : isSeasonCard ? getSeasonEmoji(seasonCard!.season) : flowerCard!.getFlowerSymbol(),
       {
         fontFamily: 'Courier New, monospace',
         fontSize: '16px',
