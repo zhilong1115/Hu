@@ -42,7 +42,7 @@ export class BossBlind {
   public readonly type: BossBlindType;
   public readonly name: string;
   public readonly description: string;
-  public readonly effect: BossBlindEffect;
+  public readonly effect: BossBlindEffect; // Properties within effect are mutable for binding
 
   // For CURSED_TILES and SUIT_BAN - track dynamic state
   private _cursedTileKeys: Set<string> = new Set();
@@ -164,42 +164,43 @@ export function createBossBlind(type: BossBlindType): BossBlind {
         }
       );
 
-    case BossBlindType.CURSED_TILES:
-      return new BossBlind(
+    case BossBlindType.CURSED_TILES: {
+      const cursedBlind = new BossBlind(
         type,
         '诅咒之牌',
         '随机牌型被诅咒，无法得分',
-        {
-          isDebuffed: function(tile: Tile): boolean {
-            const blind = this as unknown as BossBlind;
-            const key = `${tile.suit}-${tile.value}`;
-            return blind.cursedTileKeys.has(key);
-          }
-        }
+        {}
       );
+      // Bind effect to the actual BossBlind instance
+      cursedBlind.effect.isDebuffed = (tile: Tile): boolean => {
+        const key = `${tile.suit}-${tile.value}`;
+        return cursedBlind.cursedTileKeys.has(key);
+      };
+      return cursedBlind;
+    }
 
-    case BossBlindType.SUIT_BAN:
-      return new BossBlind(
+    case BossBlindType.SUIT_BAN: {
+      const suitBanBlind = new BossBlind(
         type,
         '花色禁令',
         '每次出牌后禁用一种花色（轮换）',
-        {
-          canUseTile: function(tile: Tile): boolean {
-            const blind = this as unknown as BossBlind;
-            return tile.suit !== blind.bannedSuit;
-          },
-          canWinWithHand: function(tiles: Tile[]): { allowed: boolean; reason?: string } {
-            const blind = this as unknown as BossBlind;
-            const hasBanned = tiles.some(t => t.suit === blind.bannedSuit);
-            const suitName = blind.bannedSuit === TileSuit.Wan ? '万' :
-                            blind.bannedSuit === TileSuit.Tiao ? '条' : '筒';
-            return {
-              allowed: !hasBanned,
-              reason: hasBanned ? `本次禁用${suitName}字牌！` : undefined
-            };
-          }
-        }
+        {}
       );
+      // Bind effects to the actual BossBlind instance
+      suitBanBlind.effect.canUseTile = (tile: Tile): boolean => {
+        return tile.suit !== suitBanBlind.bannedSuit;
+      };
+      suitBanBlind.effect.canWinWithHand = (tiles: Tile[]): { allowed: boolean; reason?: string } => {
+        const hasBanned = tiles.some(t => t.suit === suitBanBlind.bannedSuit);
+        const suitName = suitBanBlind.bannedSuit === TileSuit.Wan ? '万' :
+                        suitBanBlind.bannedSuit === TileSuit.Tiao ? '条' : '筒';
+        return {
+          allowed: !hasBanned,
+          reason: hasBanned ? `本次禁用${suitName}字牌！` : undefined
+        };
+      };
+      return suitBanBlind;
+    }
 
     case BossBlindType.HONOR_PRISON:
       return new BossBlind(

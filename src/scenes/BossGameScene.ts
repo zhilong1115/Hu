@@ -19,6 +19,7 @@ import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
 import { AudioManager } from '../audio/AudioManager';
 import { DeckVariant, DECK_VARIANTS } from '../core/DeckVariant';
+import { GodTileManager } from '../core/GodTileManager';
 
 /**
  * BossGameScene — Boss encounter gameplay
@@ -35,6 +36,9 @@ export class BossGameScene extends Phaser.Scene {
   private _boss!: Boss;
   private _bossBlind!: BossBlind;
   private _playerHealth: number = 100;
+
+  // God Tile Manager (bond system)
+  private _godTileManager!: GodTileManager;
 
   // UI components
   private _handDisplay!: HandDisplay;
@@ -73,7 +77,7 @@ export class BossGameScene extends Phaser.Scene {
   // Constants
   private readonly INITIAL_HANDS = 4;
   private readonly INITIAL_DISCARDS = 3;
-  private readonly INITIAL_HAND_SIZE = 13;
+  private readonly INITIAL_HAND_SIZE = 14;
 
   constructor() {
     super({ key: 'BossGameScene' });
@@ -86,6 +90,7 @@ export class BossGameScene extends Phaser.Scene {
     gold?: number;
     flowerCardManager?: FlowerCardManager;
     deckVariant?: DeckVariant;
+    godTileManager?: GodTileManager;
   }) {
     // Initialize boss
     const difficulty = data?.difficulty ?? Math.ceil((data?.roundNumber ?? 3) / 3);
@@ -99,6 +104,7 @@ export class BossGameScene extends Phaser.Scene {
     this._flowerCardManager = data?.flowerCardManager ?? new FlowerCardManager();
     this._gold = data?.gold ?? 50;
     this._deckVariant = data?.deckVariant ?? DECK_VARIANTS.standard;
+    this._godTileManager = data?.godTileManager ?? new GodTileManager();
 
     this._currentScore = 0;
     this._handsRemaining = this.INITIAL_HANDS;
@@ -638,7 +644,8 @@ export class BossGameScene extends Phaser.Scene {
             activeGodTiles: this._activeGodTiles,
             gold: this._gold,
             flowerCardManager: this._flowerCardManager,
-            deckVariant: this._deckVariant
+            deckVariant: this._deckVariant,
+            godTileManager: this._godTileManager
           });
         });
       }

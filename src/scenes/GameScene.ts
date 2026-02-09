@@ -1547,6 +1547,7 @@ export class GameScene extends Phaser.Scene {
       updateTilePositions();
 
       // Scroll handling for large tile sets
+      let wheelHandler: ((_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => void) | null = null;
       if (needsScroll) {
         bg.on('pointermove', (_pointer: Phaser.Input.Pointer) => {
           if (_pointer.isDown) {
@@ -1554,10 +1555,11 @@ export class GameScene extends Phaser.Scene {
             updateTilePositions();
           }
         });
-        this.input.on('wheel', (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
+        wheelHandler = (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
           scrollY = Math.max(0, Math.min(maxScroll, scrollY + deltaY * 0.5));
           updateTilePositions();
-        });
+        };
+        this.input.on('wheel', wheelHandler);
       }
 
       // Confirm button (fixed at bottom)
@@ -1577,6 +1579,10 @@ export class GameScene extends Phaser.Scene {
           return;
         }
         const pickedTiles = Array.from(selected).map(idx => tiles[idx]);
+        // Clean up wheel event listener to prevent memory leak
+        if (wheelHandler) {
+          this.input.off('wheel', wheelHandler);
+        }
         container.destroy();
         resolve(pickedTiles);
       });
@@ -1853,14 +1859,16 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    // Clear flower cards for this round (花牌仅当局有效)
-    this._flowerCardManager.clearAllCards();
-
-    // Calculate round end gold from god tiles
+    // Calculate round end gold from god tiles BEFORE clearing flower cards
+    // (摇钱树 needs to count remaining flower cards)
+    const flowerCardCountForRoundEnd = this._flowerCardManager.getCards().length;
     const roundEndGold = this._godTileManager.calculateRoundEndGold({
       currentGold: this._gold,
-      flowerCardCount: this._flowerCardManager.getCards().length
+      flowerCardCount: flowerCardCountForRoundEnd
     });
+
+    // Clear flower cards for this round (花牌仅当局有效)
+    this._flowerCardManager.clearAllCards();
     if (roundEndGold.gold !== 0) {
       this._gold += roundEndGold.gold;
       this.updateGoldDisplay();

@@ -168,53 +168,29 @@ function createRedDoraDeck(): Tile[] {
   const tiles: Tile[] = [];
 
   // Add number tiles, but make one copy of each 5 a "red dora"
-  for (let value = 1; value <= 9; value++) {
-    const isDoraValue = value === 5;
-
-    // Wan suit
-    if (isDoraValue) {
-      // First copy is red dora
-      addRedDoraTile(tiles, TileSuit.Wan, value as TileValue, `${value}万`, 0);
-      // Other 3 copies are normal
-      for (let copyIndex = 1; copyIndex < 4; copyIndex++) {
-        addTiles(tiles, TileSuit.Wan, value as TileValue, `${value}万`, 1);
+  const addRedDoraSet = (suit: TileSuit, suitName: string) => {
+    for (let value = 1; value <= 9; value++) {
+      if (value === 5) {
+        // First copy is red dora
+        addRedDoraTile(tiles, suit, value as TileValue, `${value}${suitName}`, 0);
+        // Other 3 copies are normal (with unique copyIndex 1, 2, 3)
+        for (let copyIndex = 1; copyIndex < 4; copyIndex++) {
+          tiles.push({
+            id: `${suit}-${value}-${copyIndex}`,
+            suit,
+            value: value as TileValue,
+            displayName: `${value}${suitName}`
+          });
+        }
+      } else {
+        addTiles(tiles, suit, value as TileValue, `${value}${suitName}`);
       }
-    } else {
-      addTiles(tiles, TileSuit.Wan, value as TileValue, `${value}万`);
     }
-  }
+  };
 
-  for (let value = 1; value <= 9; value++) {
-    const isDoraValue = value === 5;
-
-    // Tiao suit
-    if (isDoraValue) {
-      // First copy is red dora
-      addRedDoraTile(tiles, TileSuit.Tiao, value as TileValue, `${value}条`, 0);
-      // Other 3 copies are normal
-      for (let copyIndex = 1; copyIndex < 4; copyIndex++) {
-        addTiles(tiles, TileSuit.Tiao, value as TileValue, `${value}条`, 1);
-      }
-    } else {
-      addTiles(tiles, TileSuit.Tiao, value as TileValue, `${value}条`);
-    }
-  }
-
-  for (let value = 1; value <= 9; value++) {
-    const isDoraValue = value === 5;
-
-    // Tong suit
-    if (isDoraValue) {
-      // First copy is red dora
-      addRedDoraTile(tiles, TileSuit.Tong, value as TileValue, `${value}筒`, 0);
-      // Other 3 copies are normal
-      for (let copyIndex = 1; copyIndex < 4; copyIndex++) {
-        addTiles(tiles, TileSuit.Tong, value as TileValue, `${value}筒`, 1);
-      }
-    } else {
-      addTiles(tiles, TileSuit.Tong, value as TileValue, `${value}筒`);
-    }
-  }
+  addRedDoraSet(TileSuit.Wan, '万');
+  addRedDoraSet(TileSuit.Tiao, '条');
+  addRedDoraSet(TileSuit.Tong, '筒');
 
   // Add Wind tiles (4 types × 4 copies = 16 tiles)
   addTiles(tiles, TileSuit.Wind, WindValue.East, '东风');
