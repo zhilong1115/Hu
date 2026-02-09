@@ -55,6 +55,7 @@ export class BossGameScene extends Phaser.Scene {
   private _handsRemainingText!: Phaser.GameObjects.Text;
   private _discardsRemainingText!: Phaser.GameObjects.Text;
   private _playerHealthText!: Phaser.GameObjects.Text;
+  private _goldText!: Phaser.GameObjects.Text;
 
   // Buttons
   private _playHandButton!: Phaser.GameObjects.Text;
@@ -233,11 +234,12 @@ export class BossGameScene extends Phaser.Scene {
       color: '#ff6666'
     }).setOrigin(1, 0);
 
-    this.add.text(width - 20, infoY + 45, `金币: ${this._gold}`, {
+    this._goldText = this.add.text(width - 20, infoY + 45, `金币: ${this._gold}`, {
       fontFamily: 'Courier New, monospace',
       fontSize: '14px',
       color: '#ffd700'
-    }).setOrigin(1, 0);
+    });
+    this._goldText.setOrigin(1, 0);
 
     // ── God Tiles display ──
     const godTileY = height * 0.40;
@@ -347,6 +349,7 @@ export class BossGameScene extends Phaser.Scene {
     if (roundStartGoldBonus > 0) {
       this._gold += roundStartGoldBonus;
       this.time.delayedCall(300, () => {
+        this.updateGoldDisplay();
         this.showMessage(`💰 财神: +${roundStartGoldBonus}金币!`, '#ffd700');
       });
     }
@@ -438,6 +441,7 @@ export class BossGameScene extends Phaser.Scene {
     this._handsRemaining--;
     this._currentScore += finalScore;
     this._gold += scoreBreakdown.totalGold;
+    this.updateGoldDisplay();
 
     // Trigger boss abilities
     this._bossRound.processTurn();
@@ -550,6 +554,10 @@ export class BossGameScene extends Phaser.Scene {
 
   private updateDiscardsRemaining(): void {
     this._discardsRemainingText.setText(`剩余弃牌: ${this._discardsRemaining}`);
+  }
+
+  private updateGoldDisplay(): void {
+    this._goldText.setText(`金币: ${this._gold}`);
   }
 
   private updatePlayerHealth(): void {
