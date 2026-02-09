@@ -66,6 +66,7 @@ export class BossGameScene extends Phaser.Scene {
   private _discardsRemaining: number = 3;
   private _roundNumber: number = 3;
   private _gold: number = 0;
+  private _meldMultiplier: number = 1;
 
   // God Tiles & Flower Cards
   private _activeGodTiles: GodTile[] = [];
@@ -88,6 +89,7 @@ export class BossGameScene extends Phaser.Scene {
     difficulty?: number;
     activeGodTiles?: GodTile[];
     gold?: number;
+    meldMultiplier?: number;
     flowerCardManager?: FlowerCardManager;
     deckVariant?: DeckVariant;
     godTileManager?: GodTileManager;
@@ -103,6 +105,7 @@ export class BossGameScene extends Phaser.Scene {
     this._activeGodTiles = data?.activeGodTiles ?? [];
     this._flowerCardManager = data?.flowerCardManager ?? new FlowerCardManager();
     this._gold = data?.gold ?? 50;
+    this._meldMultiplier = data?.meldMultiplier ?? 1;
     this._deckVariant = data?.deckVariant ?? DECK_VARIANTS.standard;
     this._godTileManager = data?.godTileManager ?? new GodTileManager();
 
@@ -354,12 +357,17 @@ export class BossGameScene extends Phaser.Scene {
       return;
     }
 
-    // Calculate score
-    const scoreBreakdown = Scoring.calculateScore(
+    // Calculate score with bonds integration (same as GameScene)
+    const scoreBreakdown = Scoring.calculateScoreWithBonds(
       handTiles,
       evalResult.fans,
       this._activeGodTiles,
-      {},
+      this._godTileManager,
+      {
+        gold: this._gold,
+        meldMultiplier: this._meldMultiplier,
+        flowerCardManager: this._flowerCardManager
+      },
       evalResult.decomposition
     );
 
@@ -643,6 +651,7 @@ export class BossGameScene extends Phaser.Scene {
             currentScore: this._currentScore,
             activeGodTiles: this._activeGodTiles,
             gold: this._gold,
+            meldMultiplier: this._meldMultiplier,
             flowerCardManager: this._flowerCardManager,
             deckVariant: this._deckVariant,
             godTileManager: this._godTileManager
