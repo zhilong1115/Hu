@@ -1068,7 +1068,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Discard selected tiles
-    const success = this._hand.discardTiles(selectedTiles);
+    // In forced-discard mode, use removeTiles directly to bypass Hand's internal discard counter
+    const success = this._pendingFlowerEffect
+      ? this._hand.removeTiles(selectedTiles)
+      : this._hand.discardTiles(selectedTiles);
 
     if (!success) {
       this.showMessage('弃牌失败', '#ff4444');
@@ -1920,8 +1923,9 @@ export class GameScene extends Phaser.Scene {
       flowerCardCount: flowerCardCountForRoundEnd
     });
 
-    // Clear flower cards for this round (花牌仅当局有效)
+    // Clear flower cards and deck mods for this round (花牌仅当局有效)
     this._flowerCardManager.clearAllCards();
+    this._flowerCardManager.clearDeckMods();
     if (roundEndGold.gold !== 0) {
       this._gold += roundEndGold.gold;
       this.updateGoldDisplay();

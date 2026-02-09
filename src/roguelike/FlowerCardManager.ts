@@ -476,7 +476,9 @@ export class FlowerCardManager {
           break;
       }
     }
-    this._pendingDeckMods = [];
+    // Note: don't clear _pendingDeckMods here — they need to persist across
+    // hands within a round (startNewHand recreates the deck from scratch).
+    // Call clearDeckMods() explicitly at round end.
     return result;
   }
 

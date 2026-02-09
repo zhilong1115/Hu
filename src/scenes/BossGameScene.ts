@@ -643,8 +643,9 @@ export class BossGameScene extends Phaser.Scene {
       flowerCardCount: flowerCardCountForRoundEnd
     });
 
-    // Clear flower cards for this round (花牌仅当局有效)
+    // Clear flower cards and deck mods for this round (花牌仅当局有效)
     this._flowerCardManager.clearAllCards();
+    this._flowerCardManager.clearDeckMods();
 
     if (roundEndGold.gold !== 0) {
       this._gold += roundEndGold.gold;
