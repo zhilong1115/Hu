@@ -1067,6 +1067,18 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Check if player can afford instant cards
+    if (selectedCard.isInstant() && this._gold < selectedCard.cost) {
+      this.showMessage(`金币不足！需要 ${selectedCard.cost} 金币`, '#ff4444');
+      return;
+    }
+
+    // Deduct gold cost for instant cards
+    if (selectedCard.isInstant()) {
+      this._gold -= selectedCard.cost;
+      this.updateGoldDisplay();
+    }
+
     // Get selected tiles (for transform effects)
     const selectedTiles = this._handDisplay.selectedTiles;
 
@@ -1092,6 +1104,14 @@ export class GameScene extends Phaser.Scene {
     // Update game state from context
     this._handsRemaining = result.context.handsRemaining;
     this._discardsRemaining = result.context.discardsRemaining;
+
+    // Apply gold delta from card effects (bamboo/chrys gold generation)
+    const goldDelta = (result.context as any).goldDelta || 0;
+    if (goldDelta > 0) {
+      this._gold += goldDelta;
+      this.updateGoldDisplay();
+      this.showMessage(`+${goldDelta} 金币`, '#ffdd00');
+    }
 
     // 细水长流: 20% chance flower card is NOT consumed
     let cardPreserved = false;
