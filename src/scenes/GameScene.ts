@@ -1346,7 +1346,7 @@ export class GameScene extends Phaser.Scene {
       mgr.removeDebuff('chrys_huangjin_all_gold');
       const tiles = this._hand.tiles as Tile[];
       for (const tile of tiles) {
-        (tile as any).material = 'gold';
+        tile.material = Material.GOLD;
       }
       this._handDisplay.updateDisplay();
       this._handDisplay.refreshMaterialIndicators();
@@ -1427,16 +1427,16 @@ export class GameScene extends Phaser.Scene {
    * Apply random materials to N random hand tiles
    */
   private applyRandomMaterialToTiles(count: number): void {
-    const randomMaterials: string[] = ['bronze', 'silver', 'gold', 'bamboo', 'ice', 'glass', 'jade'];
+    const randomMaterials: Material[] = [Material.BRONZE, Material.SILVER, Material.GOLD, Material.BAMBOO, Material.ICE, Material.GLASS, Material.JADE];
     const tiles = [...this._hand.tiles] as Tile[];
     // Shuffle and pick up to count tiles that don't have a material
-    const candidates = tiles.filter(t => !(t as any).material || (t as any).material === 'none');
+    const candidates = tiles.filter(t => !t.material || t.material === Material.NONE);
     const shuffled = candidates.sort(() => Math.random() - 0.5);
     const toEnhance = shuffled.slice(0, Math.min(count, shuffled.length));
 
     for (const tile of toEnhance) {
       const mat = randomMaterials[Math.floor(Math.random() * randomMaterials.length)];
-      (tile as any).material = mat;
+      tile.material = mat;
     }
 
     if (toEnhance.length > 0) {

@@ -23,7 +23,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
   private readonly CARD_WIDTH = 100;
   private readonly CARD_HEIGHT = 140;
   private readonly CARD_SPACING = 15;
-  private readonly MAX_CARDS = 3;
+  private readonly MAX_CARDS = 8;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);

@@ -531,7 +531,12 @@ export class ShopUI extends Phaser.GameObjects.Container {
   }
 
   private onSellGodTile(tile: GodTile): void {
-    const goldEarned = this._shop.sellGodTile(tile);
+    const goldEarned = this._shop.sellGodTile(tile, this._activeGodTiles);
+    if (goldEarned === -1) {
+      // Selling blocked by 貔貅
+      this.showInsufficientGoldMessage(); // Reuse message UI
+      return;
+    }
     this.updateOwnedGodTiles();
     this.updateRerollButton();
     this.emit('godTileSold', tile, goldEarned);
