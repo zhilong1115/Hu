@@ -3,7 +3,7 @@ import { Hand } from '../core/Hand';
 import { Fan } from '../core/FanEvaluator';
 
 /**
- * Boss Blind — special modifiers that restrict player actions during boss rounds
+ * Boss庄 — special modifiers that restrict player actions during boss rounds
  * Inspired by Balatro's Boss Blinds that make rounds more challenging
  */
 
@@ -55,7 +55,7 @@ export class BossBlind {
     this.effect = effect;
   }
 
-  /** Initialize dynamic blind state (call when boss round starts) */
+  /** Initialize dynamic 庄 state (call when boss round starts) */
   public initialize(context: { hand?: Hand; drawPile?: Tile[] }): void {
     switch (this.type) {
       case BossBlindType.CURSED_TILES:
@@ -67,12 +67,12 @@ export class BossBlind {
     }
   }
 
-  /** Get cursed tile keys (for CURSED_TILES blind) */
+  /** Get cursed tile keys (for CURSED_TILES 庄) */
   public get cursedTileKeys(): ReadonlySet<string> {
     return this._cursedTileKeys;
   }
 
-  /** Get banned suit (for SUIT_BAN blind) */
+  /** Get banned suit (for SUIT_BAN 庄) */
   public get bannedSuit(): TileSuit | null {
     return this._bannedSuit;
   }
@@ -115,7 +115,7 @@ export class BossBlind {
   }
 }
 
-// ─── Boss Blind Factory ─────────────────────────────────────────────────────
+// ─── Boss庄 Factory ────────────────────────────────────────────────────────
 
 export function createBossBlind(type: BossBlindType): BossBlind {
   switch (type) {
@@ -246,7 +246,7 @@ export function createBossBlind(type: BossBlindType): BossBlind {
   }
 }
 
-// ─── All Boss Blind Types ───────────────────────────────────────────────────
+// ─── All Boss庄 Types ──────────────────────────────────────────────────────
 
 export const ALL_BOSS_BLIND_TYPES = [
   BossBlindType.CHARACTER_SEAL,

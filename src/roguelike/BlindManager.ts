@@ -1,7 +1,7 @@
 import { Blind, BlindType, createSmallBlind, createBigBlind, createBossBlind } from './Blind';
 import { Boss } from './BossRound';
 
-// ─── Blind Progression Result ───────────────────────────────────────────────
+// ─── 庄 Progression Result ──────────────────────────────────────────────────
 
 export interface BlindResult {
   cleared: boolean;
@@ -15,7 +15,7 @@ export interface BlindResult {
   handsRemaining: number;
 }
 
-// ─── Blind Manager ──────────────────────────────────────────────────────────
+// ─── 庄 Manager ────────────────────────────────────────────────────────────
 
 export class BlindManager {
   private _currentBlind: Blind | null = null;
@@ -52,7 +52,7 @@ export class BlindManager {
   }
 
   /**
-   * Start a new blind.
+   * Start a new 庄 round.
    */
   public startBlind(blind: Blind): void {
     this._currentBlind = blind;
@@ -65,11 +65,11 @@ export class BlindManager {
    */
   public playHand(score: number): void {
     if (!this._currentBlind) {
-      throw new Error('No blind is currently active');
+      throw new Error('No 庄 is currently active');
     }
 
     if (this.handsRemaining <= 0) {
-      throw new Error('No hands remaining in this blind');
+      throw new Error('No hands remaining in this 庄');
     }
 
     this._currentScore += score;
@@ -77,12 +77,12 @@ export class BlindManager {
   }
 
   /**
-   * Get the result of the current blind.
-   * Should be called when the blind is either cleared or failed.
+   * Get the result of the current 庄.
+   * Should be called when the 庄 is either cleared or failed.
    */
   public getBlindResult(): BlindResult {
     if (!this._currentBlind) {
-      throw new Error('No blind is currently active');
+      throw new Error('No 庄 is currently active');
     }
 
     const cleared = this.isBlindCleared;
@@ -105,7 +105,7 @@ export class BlindManager {
   }
 
   /**
-   * Reset the blind manager state.
+   * Reset the 庄 manager state.
    */
   public reset(): void {
     this._currentBlind = null;
@@ -143,11 +143,11 @@ export class BlindManager {
   }
 }
 
-// ─── Blind Sequence Generator ───────────────────────────────────────────────
+// ─── 庄 Sequence Generator ──────────────────────────────────────────────────
 
 /**
- * Generate the sequence of blinds for a given ante.
- * Each ante has: Small Blind → Big Blind → Boss Blind
+ * Generate the sequence of 庄 for a given ante.
+ * Each ante has: 小庄 → 大庄 → Boss庄
  */
 export function generateBlindsForAnte(ante: number, boss: Boss): Blind[] {
   return [

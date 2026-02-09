@@ -1,6 +1,6 @@
 import { Boss } from './BossRound';
 
-// ─── Blind Types ────────────────────────────────────────────────────────────
+// ─── 庄 (Zhuang) Types ──────────────────────────────────────────────────────
 
 export enum BlindType {
   SMALL = 'small',
@@ -8,7 +8,7 @@ export enum BlindType {
   BOSS = 'boss'
 }
 
-// ─── Blind Interface ────────────────────────────────────────────────────────
+// ─── 庄 Interface ──────────────────────────────────────────────────────────
 
 export interface Blind {
   type: BlindType;
@@ -19,25 +19,25 @@ export interface Blind {
   bonusMoneyPerExcessPoint: number; // Money earned per point above target
   handsAllowed: number;
   discardsAllowed: number;
-  boss?: Boss; // Only for boss blinds
+  boss?: Boss; // Only for Boss庄
 }
 
-// ─── Blind Creation Helpers ─────────────────────────────────────────────────
+// ─── 庄 Creation Helpers ───────────────────────────────────────────────────
 
 export function createSmallBlind(
   ante: number,
   handsAllowed: number = 4,
   discardsAllowed: number = 3
 ): Blind {
-  // Small blind target scales with ante
+  // 小庄 target scales with ante
   // Tuned to match new scoring: basic fans should clear early antes
   const targetScore = 250 + (ante - 1) * 180;
   const rewardMoney = 4 + ante;  // Increased base reward
 
   return {
     type: BlindType.SMALL,
-    name: `小盲注 ${ante}`,
-    description: '小盲注 - 入门难度',
+    name: `小庄 ${ante}`,
+    description: '小庄 - 入门难度',
     targetScore,
     rewardMoney,
     bonusMoneyPerExcessPoint: 0.01,
@@ -51,15 +51,15 @@ export function createBigBlind(
   handsAllowed: number = 4,
   discardsAllowed: number = 3
 ): Blind {
-  // Big blind target is higher than small blind
+  // 大庄 target is higher than 小庄
   // Requires mid-tier fans or multiple basic fans
   const targetScore = 400 + (ante - 1) * 280;
   const rewardMoney = 5 + ante * 2;  // Better rewards for harder challenge
 
   return {
     type: BlindType.BIG,
-    name: `大盲注 ${ante}`,
-    description: '大盲注 - 中等难度',
+    name: `大庄 ${ante}`,
+    description: '大庄 - 中等难度',
     targetScore,
     rewardMoney,
     bonusMoneyPerExcessPoint: 0.02,
@@ -74,7 +74,7 @@ export function createBossBlind(
   handsAllowed: number = 5,
   discardsAllowed: number = 4
 ): Blind {
-  // Boss blind target is the highest
+  // Boss庄 target is the highest
   // Requires high-tier fans and/or God Tile synergies
   const targetScore = 550 + (ante - 1) * 350;
   const rewardMoney = 12 + ante * 3;  // Major rewards for boss victories

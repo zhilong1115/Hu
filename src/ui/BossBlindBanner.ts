@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { BossBlind } from '../roguelike/BossBlind';
 
 /**
- * BossBlindBanner — Visual banner showing active boss blind effect
+ * BossBlindBanner — Visual banner showing active Boss庄 effect
  * Displays at top of screen with pulsing/warning effects
  */
 export class BossBlindBanner extends Phaser.GameObjects.Container {
@@ -45,7 +45,7 @@ export class BossBlindBanner extends Phaser.GameObjects.Container {
     this._warningIcon.setOrigin(0.5);
     this.add(this._warningIcon);
 
-    // Blind name
+    // Boss庄 name
     this._nameText = this.scene.add.text(0, -15, '', {
       fontFamily: 'Courier New, monospace',
       fontSize: '20px',
@@ -76,7 +76,7 @@ export class BossBlindBanner extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Show the banner with the given boss blind
+   * Show the banner with the given Boss庄
    */
   public showBlind(bossBlind: BossBlind): void {
     this._bossBlind = bossBlind;

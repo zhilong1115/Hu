@@ -22,7 +22,7 @@ import { DeckVariant, DECK_VARIANTS } from '../core/DeckVariant';
 
 /**
  * BossGameScene — Boss encounter gameplay
- * Extends regular gameplay with boss health, abilities, and blind restrictions
+ * Extends regular gameplay with boss health, abilities, and Boss庄 restrictions
  */
 export class BossGameScene extends Phaser.Scene {
   // Core game state
@@ -104,7 +104,7 @@ export class BossGameScene extends Phaser.Scene {
     this._handsRemaining = this.INITIAL_HANDS;
     this._discardsRemaining = this.INITIAL_DISCARDS;
 
-    // Apply boss blind game state modifiers
+    // Apply Boss庄 game state modifiers
     if (this._bossBlind.effect.modifyGameState) {
       const modified = this._bossBlind.effect.modifyGameState({
         hands: this._handsRemaining,
@@ -148,7 +148,7 @@ export class BossGameScene extends Phaser.Scene {
     // Create boss round
     this._bossRound = new BossRound(this._boss, this._bossBlind);
 
-    // Initialize boss blind
+    // Initialize Boss庄
     this._bossBlind.initialize({
       hand: this._hand,
       drawPile: this._drawPile
@@ -169,7 +169,7 @@ export class BossGameScene extends Phaser.Scene {
       this._boss.maxHealth
     );
 
-    // ── Boss Blind Banner (below health bar) ──
+    // ── Boss庄 Banner (below health bar) ──
     this._bossBlindBanner = new BossBlindBanner(this, centerX, 180);
 
     // ── Round info ──
@@ -339,7 +339,7 @@ export class BossGameScene extends Phaser.Scene {
     // Play fan announce sound
     AudioManager.getInstance().playSFX('fanAnnounce');
 
-    // Check boss blind restrictions
+    // Check Boss庄 restrictions
     const blindCheck = this._bossRound.canWinWithBlind(handTiles, evalResult.fans);
     if (!blindCheck.allowed) {
       this.showMessage(blindCheck.reason || 'BOSS限制了这种胡牌！', '#ff4444');
@@ -357,7 +357,7 @@ export class BossGameScene extends Phaser.Scene {
       evalResult.decomposition
     );
 
-    // Apply boss blind score modifier
+    // Apply Boss庄 score modifier
     let finalScore = scoreBreakdown.finalScore;
     if (this._bossBlind.effect.modifyScore) {
       finalScore = this._bossBlind.effect.modifyScore(
@@ -420,7 +420,7 @@ export class BossGameScene extends Phaser.Scene {
     this.updateScoreDisplay();
     this.updateHandsRemaining();
 
-    // Rotate banned suit for SUIT_BAN blind
+    // Rotate banned suit for SUIT_BAN 庄
     if (this._bossBlind.type === 'suit_ban') {
       this._bossBlind.rotateBannedSuit();
       const suitName = this._bossBlind.bannedSuit === TileSuit.Wan ? '万' :
