@@ -1954,7 +1954,6 @@ export class GameScene extends Phaser.Scene {
                 difficulty: Math.ceil(nextRound / 3),
                 activeGodTiles: this._activeGodTiles,
                 gold: this._gold,
-                meldMultiplier: this._meldMultiplier,
                 flowerCardManager: this._flowerCardManager,
                 deckVariant: this._deckVariant,
                 godTileManager: this._godTileManager
