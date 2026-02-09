@@ -24,6 +24,8 @@ import { MaterialManager, materialManager } from '../core/MaterialManager';
 import { ALL_FLOWER_CARDS } from '../data/flowerCards';
 import { createFlowerCardFromData } from '../roguelike/FlowerCard';
 import { Material } from '../data/materials';
+import { BondStatusUI } from '../ui/BondStatusUI';
+import { isSameTile } from '../core/Tile';
 
 /**
  * BossGameScene — Boss encounter gameplay
@@ -44,6 +46,9 @@ export class BossGameScene extends Phaser.Scene {
   // God Tile Manager (bond system)
   private _godTileManager!: GodTileManager;
 
+  // Played melds (出牌)
+  private _playedMelds: { type: string; tiles: Tile[]; multiplier: number }[] = [];
+
   // UI components
   private _handDisplay!: HandDisplay;
   private _scorePopup!: ScorePopup;
@@ -51,6 +56,7 @@ export class BossGameScene extends Phaser.Scene {
   private _flowerCardDisplay!: FlowerCardDisplay;
   private _bossHealthBar!: BossHealthBar;
   private _bossBlindBanner!: BossBlindBanner;
+  private _bondStatusUI!: BondStatusUI;
 
   // UI text elements
   private _scoreText!: Phaser.GameObjects.Text;
@@ -59,6 +65,8 @@ export class BossGameScene extends Phaser.Scene {
   private _discardsRemainingText!: Phaser.GameObjects.Text;
   private _playerHealthText!: Phaser.GameObjects.Text;
   private _goldText!: Phaser.GameObjects.Text;
+  private _drawPileCountText!: Phaser.GameObjects.Text;
+  private _meldMultiplierText!: Phaser.GameObjects.Text;
 
   // Buttons
   private _playHandButton!: Phaser.GameObjects.Text;
@@ -124,6 +132,7 @@ export class BossGameScene extends Phaser.Scene {
     this._currentScore = 0;
     this._handsRemaining = this.INITIAL_HANDS;
     this._discardsRemaining = this.INITIAL_DISCARDS;
+    this._playedMelds = [];
 
     // Apply Boss庄 game state modifiers
     if (this._bossBlind.effect.modifyGameState) {
@@ -250,6 +259,21 @@ export class BossGameScene extends Phaser.Scene {
       color: '#ffd700'
     });
     this._goldText.setOrigin(1, 0);
+
+    this._drawPileCountText = this.add.text(width / 2, infoY + 45, `牌堆: ${this._drawPile.length}`, {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '14px',
+      color: '#cccccc'
+    }).setOrigin(0.5, 0);
+
+    this._meldMultiplierText = this.add.text(20, infoY + 65, `出牌倍率: ×${this._meldMultiplier}`, {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '14px',
+      color: '#ff66ff'
+    });
+
+    // ── Bond Status UI ──
+    this._bondStatusUI = new BondStatusUI(this, 20, headerY + 80, this._godTileManager);
 
     // ── God Tiles display ──
     const godTileY = height * 0.40;
@@ -382,12 +406,35 @@ export class BossGameScene extends Phaser.Scene {
     }
 
     this._handDisplay.updateDisplay();
+    this.updateDrawPileCount();
     
     // Refresh material indicators after effects are applied
     if (effectDescriptions.length > 0) {
       this.time.delayedCall(100, () => {
         this._handDisplay.refreshMaterialIndicators();
       });
+    }
+  }
+
+  /**
+   * Apply 貔貅 gold gain multiplier (+50%) if owned
+   */
+  private applyGoldGainMultiplier(amount: number): number {
+    const mult = this._godTileManager.getGoldGainMultiplier();
+    if (mult > 1 && amount > 0) {
+      return Math.floor(amount * mult);
+    }
+    return amount;
+  }
+
+  private updateDrawPileCount(): void {
+    this._drawPileCountText.setText(`牌堆: ${this._drawPile.length}`);
+  }
+
+  private updateMeldMultiplierDisplay(): void {
+    this._meldMultiplierText.setText(`出牌倍率: ×${this._meldMultiplier}`);
+    if (this._meldMultiplier > 1) {
+      this._meldMultiplierText.setStyle({ color: '#ff6600' });
     }
   }
 
@@ -527,6 +574,24 @@ export class BossGameScene extends Phaser.Scene {
       });
     }
 
+    // Log bond effects if any
+    if (scoreBreakdownWithBonds.bondEffects.length > 0) {
+      console.log('Bond effects applied:', scoreBreakdownWithBonds.bondEffects);
+    }
+
+    // Show roulette animation if applicable
+    if (scoreBreakdownWithBonds.rouletteResult) {
+      const r = scoreBreakdownWithBonds.rouletteResult;
+      this.showMessage(`🎲 赌神轮盘: ${r.operation}${r.value}!`, '#ffd700');
+    }
+
+    // Check for 孤注一掷 failure (50% gold penalty)
+    if ((scoreBreakdownWithBonds as any).guzhuyizhiFailed) {
+      const penalty = Math.floor(this._gold * 0.5);
+      this._gold -= penalty;
+      this.showMessage(`孤注一掷失败: -${penalty}金币 (50%)`, '#ff4444');
+    }
+
     // Highlight winning tiles sequentially
     this._handDisplay.highlightWinningTilesSequentially(handTiles, () => {
       // Play tile placement sound
@@ -634,6 +699,9 @@ export class BossGameScene extends Phaser.Scene {
       return;
     }
 
+    // Play discard sound
+    AudioManager.getInstance().playSFX('tileDiscard');
+
     // 暗香浮动: +5 gold per discarded tile
     if (this._flowerCardManager.hasDebuff('plum_anxiang_gold_discard')) {
       this._flowerCardManager.removeDebuff('plum_anxiang_gold_discard');
@@ -655,20 +723,50 @@ export class BossGameScene extends Phaser.Scene {
       this.showMessage(`竹牌弃牌奖励: +${bambooGold}金币`, '#8BC34A');
     }
 
-    // Apply gold bonus from 金蟾 god tile
+    // Apply gold bonus from 金蟾 god tile (with 貔貅 multiplier)
     const discardGoldBonus = this._godTileManager.getDiscardGoldBonus();
     if (discardGoldBonus > 0) {
-      const totalBonus = discardGoldBonus * selectedTiles.length;
+      const baseTotalBonus = discardGoldBonus * selectedTiles.length;
+      const totalBonus = this.applyGoldGainMultiplier(baseTotalBonus);
       this._gold += totalBonus;
       this.updateGoldDisplay();
       this.showMessage(`金蟾: +${totalBonus}金币!`, '#ffd700');
     }
 
-    // Draw new tiles
-    const tilesToDraw = Math.min(selectedTiles.length, this._drawPile.length);
-    for (let i = 0; i < tilesToDraw; i++) {
-      const tile = this._drawPile.pop()!;
-      this._hand.addTile(tile);
+    // Gamble bond: 浑水摸鱼 - 20% chance to draw 2 extra tiles to choose from
+    let extraDraws = 0;
+    if (this._godTileManager.hasGodTile('gamble_muddy_waters')) {
+      const { success: muddy } = this._godTileManager.rollProbability(0.2);
+      if (muddy) {
+        extraDraws = 2;
+        this.showMessage('🎲 浑水摸鱼: 多摸2张!', '#00ff00');
+      }
+    }
+
+    // Draw replacement tiles
+    const baseDraw = Math.min(selectedTiles.length, this._drawPile.length);
+
+    if (extraDraws > 0 && this._drawPile.length >= baseDraw + extraDraws) {
+      const totalDraw = baseDraw + Math.min(extraDraws, this._drawPile.length - baseDraw);
+      const drawnTiles: Tile[] = [];
+      for (let i = 0; i < totalDraw; i++) {
+        drawnTiles.push(this._drawPile.pop()!);
+      }
+      const picked = await this.showTileSelectionOverlay(
+        drawnTiles,
+        baseDraw,
+        `浑水摸鱼: 选择 ${baseDraw} 张牌加入手牌`
+      );
+      for (const tile of picked) {
+        this._hand.addTile(tile);
+      }
+      const unpicked = drawnTiles.filter(t => !picked.includes(t));
+      this._drawPile.push(...unpicked);
+    } else {
+      for (let i = 0; i < baseDraw; i++) {
+        const tile = this._drawPile.pop()!;
+        this._hand.addTile(tile);
+      }
     }
 
     // Deduct discard (skip if in forced-discard mode)
@@ -679,7 +777,9 @@ export class BossGameScene extends Phaser.Scene {
 
     this._handDisplay.updateDisplay();
     this.updateDiscardsRemaining();
+    this.updateDrawPileCount();
     this.updateButtonStates();
+    this._bondStatusUI.updateDisplay();
 
     // Handle pending flower effect after discard completes
     if (this._pendingFlowerEffect) {
@@ -692,6 +792,7 @@ export class BossGameScene extends Phaser.Scene {
 
   private async handlePostDiscardFlowerEffect(effect: string, discardedTiles: Tile[]): Promise<void> {
     if (effect === 'plum_sannong') {
+      // 梅花三弄: reveal (discardCount+3) tiles from draw pile, pick discardCount
       const discardCount = discardedTiles.length;
       const revealCount = discardCount + 3;
       const pickCount = discardCount;
@@ -701,26 +802,204 @@ export class BossGameScene extends Phaser.Scene {
         for (let i = 0; i < Math.min(revealCount, this._drawPile.length); i++) {
           revealed.push(this._drawPile.pop()!);
         }
-        // Simplified: just add the first pickCount tiles (no overlay in boss scene)
-        const picked = revealed.slice(0, pickCount);
-        for (const tile of picked) {
-          this._hand.addTile(tile);
+
+        if (pickCount > 0 && pickCount <= revealed.length) {
+          const picked = await this.showTileSelectionOverlay(
+            revealed,
+            pickCount,
+            `梅花三弄: 选择 ${pickCount} 张牌加入手牌`
+          );
+          for (const tile of picked) {
+            this._hand.addTile(tile);
+          }
+          const unpicked = revealed.filter(t => !picked.includes(t));
+          this._drawPile.push(...unpicked);
+          this.showMessage(`梅花三弄: 获得 ${pickCount} 张牌!`, '#ff88ff');
+        } else {
+          this.showMessage(`梅花三弄: 亮出 ${revealed.length} 张牌`, '#ff88ff');
+          await this.showTileSelectionOverlay(revealed, 0, '梅花三弄: 查看牌堆顶牌');
+          this._drawPile.push(...revealed);
         }
-        const unpicked = revealed.slice(pickCount);
-        this._drawPile.push(...unpicked);
-        this.showMessage(`梅花三弄: 获得 ${pickCount} 张牌!`, '#ff88ff');
         this._handDisplay.updateDisplay();
+        this.updateDrawPileCount();
       }
     } else if (effect === 'plum_yijian') {
+      // 一剪梅: show ALL draw pile tiles sorted, player picks 1
       if (this._drawPile.length > 0) {
-        // Simplified: draw 1 random tile
-        const tile = this._drawPile.pop()!;
-        this._hand.addTile(tile);
-        this.showMessage(`一剪梅: 获得 ${tile.displayName}!`, '#ff88ff');
+        const allDrawPile = [...this._drawPile];
+        allDrawPile.sort((a, b) => {
+          if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
+          return a.value - b.value;
+        });
+        const picked = await this.showTileSelectionOverlay(
+          allDrawPile,
+          1,
+          '一剪梅: 从牌库选择1张牌'
+        );
+        if (picked.length === 1) {
+          const idx = this._drawPile.findIndex(t => t === picked[0]);
+          if (idx !== -1) this._drawPile.splice(idx, 1);
+          this._hand.addTile(picked[0]);
+          // Shuffle draw pile after searching
+          for (let i = this._drawPile.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this._drawPile[i], this._drawPile[j]] = [this._drawPile[j], this._drawPile[i]];
+          }
+          this.showMessage(`一剪梅: 获得 ${picked[0].displayName}!`, '#ff88ff');
+        }
         this._handDisplay.updateDisplay();
+        this.updateDrawPileCount();
       }
     }
     this.updateButtonStates();
+  }
+
+  /**
+   * Show a tile selection overlay - display tiles and let player pick N
+   */
+  private showTileSelectionOverlay(tiles: Tile[], pickCount: number, title: string): Promise<Tile[]> {
+    return new Promise((resolve) => {
+      const screenW = this.scale.width;
+      const screenH = this.scale.height;
+      const centerX = screenW / 2;
+      const centerY = screenH / 2;
+      const container = this.add.container(centerX, centerY);
+      container.setDepth(1001);
+
+      const bg = this.add.rectangle(0, 0, screenW, screenH, 0x000000, 0.85);
+      bg.setInteractive();
+      container.add(bg);
+
+      const titleText = this.add.text(0, -screenH / 2 + 30, title, {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '20px',
+        color: '#ffd700',
+        wordWrap: { width: screenW - 40 },
+        align: 'center'
+      }).setOrigin(0.5);
+      container.add(titleText);
+
+      const selected: Set<number> = new Set();
+      const tileButtons: Phaser.GameObjects.Rectangle[] = [];
+      const tileContainer = this.add.container(0, 0);
+      container.add(tileContainer);
+
+      const tileW = 50;
+      const tileH = 68;
+      const gap = 6;
+      const maxCols = Math.floor((screenW - 40) / (tileW + gap));
+      const cols = Math.min(tiles.length, maxCols);
+      const rows = Math.ceil(tiles.length / cols);
+      const startX = -(cols * (tileW + gap) - gap) / 2 + tileW / 2;
+
+      const titleBottom = -screenH / 2 + 60;
+      const confirmTop = screenH / 2 - 60;
+      const availableH = confirmTop - titleBottom - 20;
+      const contentH = rows * (tileH + gap);
+      const needsScroll = contentH > availableH;
+      const tilesStartY = titleBottom + 10 + (needsScroll ? 0 : (availableH - contentH) / 2);
+
+      let scrollY = 0;
+      const maxScroll = Math.max(0, contentH - availableH);
+
+      if (needsScroll) {
+        const maskShape = this.make.graphics({});
+        maskShape.fillRect(
+          centerX - screenW / 2, centerY + titleBottom,
+          screenW, availableH
+        );
+        const mask = maskShape.createGeometryMask();
+        tileContainer.setMask(mask);
+      }
+
+      const updateTilePositions = () => {
+        tileContainer.setY(tilesStartY - scrollY);
+      };
+
+      tiles.forEach((tile, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = startX + col * (tileW + gap);
+        const y = row * (tileH + gap);
+
+        const tileBg = this.add.rectangle(x, y, tileW, tileH, 0x224422)
+          .setStrokeStyle(2, 0x888888);
+        tileBg.setInteractive({ useHandCursor: true });
+        tileContainer.add(tileBg);
+        tileButtons.push(tileBg);
+
+        const tileLabel = this.add.text(x, y, tile.displayName, {
+          fontFamily: 'Courier New, monospace',
+          fontSize: '13px',
+          color: '#ffffff',
+          align: 'center',
+          wordWrap: { width: tileW - 4 }
+        }).setOrigin(0.5);
+        tileContainer.add(tileLabel);
+
+        tileBg.on('pointerdown', () => {
+          if (pickCount === 0) return;
+          if (selected.has(i)) {
+            selected.delete(i);
+            tileBg.setFillStyle(0x224422);
+            tileBg.setStrokeStyle(2, 0x888888);
+          } else if (selected.size < pickCount) {
+            selected.add(i);
+            tileBg.setFillStyle(0x446644);
+            tileBg.setStrokeStyle(3, 0x00ff00);
+          }
+          confirmBtn.setText(pickCount === 0 ? '确定' : `确定 (${selected.size}/${pickCount})`);
+        });
+      });
+
+      updateTilePositions();
+
+      let wheelHandler: ((_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => void) | null = null;
+      if (needsScroll) {
+        bg.on('pointermove', (_pointer: Phaser.Input.Pointer) => {
+          if (_pointer.isDown) {
+            scrollY = Math.max(0, Math.min(maxScroll, scrollY - _pointer.velocity.y * 0.02));
+            updateTilePositions();
+          }
+        });
+        wheelHandler = (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
+          scrollY = Math.max(0, Math.min(maxScroll, scrollY + deltaY * 0.5));
+          updateTilePositions();
+        };
+        this.input.on('wheel', wheelHandler);
+      }
+
+      const confirmBtn = this.add.text(0, screenH / 2 - 45,
+        pickCount === 0 ? '确定' : `确定 (0/${pickCount})`, {
+        fontFamily: 'Courier New, monospace',
+        fontSize: '20px',
+        color: '#ffffff',
+        backgroundColor: '#336633',
+        padding: { x: 30, y: 12 }
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      container.add(confirmBtn);
+
+      confirmBtn.on('pointerdown', () => {
+        if (pickCount > 0 && selected.size !== pickCount) {
+          this.showMessage(`请选择 ${pickCount} 张牌`, '#ff4444');
+          return;
+        }
+        const pickedTiles = Array.from(selected).map(idx => tiles[idx]);
+        if (wheelHandler) {
+          this.input.off('wheel', wheelHandler);
+        }
+        container.destroy();
+        resolve(pickedTiles);
+      });
+    });
+  }
+
+  /**
+   * Show hand tile selection - let player pick N tiles from their hand
+   */
+  private showTileSelectionFromHand(pickCount: number, title: string): Promise<Tile[]> {
+    const handTiles = [...this._hand.tiles] as Tile[];
+    return this.showTileSelectionOverlay(handTiles, pickCount, title);
   }
 
   /* ── UI Updates ────────────────────────────────────────── */
@@ -729,10 +1008,13 @@ export class BossGameScene extends Phaser.Scene {
     const hasSelection = this._handDisplay.hasSelection;
     const has14Tiles = this._hand.tiles.length === 14;
 
-    // Forced-discard mode: disable play hand, only allow discard
+    // Forced-discard mode: disable play hand and use card, only allow discard
     if (this._pendingFlowerEffect) {
       this._playHandButton.setAlpha(0.3);
       this._playHandButton.setStyle({ color: '#666666' });
+
+      this._useCardButton.setAlpha(0.3);
+      this._useCardButton.setStyle({ color: '#666666' });
 
       if (hasSelection) {
         this._discardButton.setAlpha(1);
@@ -747,6 +1029,8 @@ export class BossGameScene extends Phaser.Scene {
     }
 
     this._discardButton.setText('弃牌');
+    this._useCardButton.setAlpha(1);
+    this._useCardButton.setStyle({ color: '#ffffff' });
 
     if (has14Tiles && this._handsRemaining > 0) {
       this._playHandButton.setAlpha(1);
@@ -1013,6 +1297,7 @@ export class BossGameScene extends Phaser.Scene {
     }
 
     this._handDisplay.updateDisplay();
+    this.updateDrawPileCount();
   }
 
   private async handlePendingFlowerDebuffs(): Promise<void> {
