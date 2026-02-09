@@ -5,6 +5,7 @@ import { GodTileManager } from './GodTileManager';
 import { Material } from '../data/materials';
 import { MaterialManager, MaterialEffectResult } from './MaterialManager';
 import { getFanMultiplier } from '../data/fans';
+import { FlowerCardManager } from '../roguelike/FlowerCardManager';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -290,6 +291,7 @@ export class Scoring {
     options: ScoringOptions & {
       gold?: number;
       meldMultiplier?: number;
+      flowerCardManager?: FlowerCardManager | null;
     } = {},
     decomposition?: HandDecomposition | null
   ): ScoreBreakdown & {
@@ -302,25 +304,40 @@ export class Scoring {
     const bondEffects: string[] = [];
     let rouletteResult: { operation: '+' | '-' | '×'; value: number } | null = null;
 
-    // If no GodTileManager, return base breakdown
-    if (!godTileManager) {
+    // Apply permanent fan boosts from spring season cards / 玉兰花开
+    const fcm = options.flowerCardManager;
+    let permanentFanBoostMult = 0;
+    if (fcm) {
+      for (const fan of detectedFans) {
+        const boost = fcm.getPermanentFanBoost(fan.name);
+        if (boost > 0) {
+          permanentFanBoostMult += boost;
+          bondEffects.push(`${fan.name} 永久加成: +${boost}倍率`);
+        }
+      }
+    }
+
+    // If no GodTileManager and no permanent boosts, return base breakdown
+    if (!godTileManager && permanentFanBoostMult === 0) {
       return { ...baseBreakdown, bondEffects, rouletteResult };
     }
 
     // Count material tiles in the hand
     const materialTileCount = hand.filter(t => t.material && t.material !== Material.NONE).length;
 
-    // Calculate bond scoring bonuses
-    const bondBonus = godTileManager.calculateBondScoringBonus({
-      gold: options.gold ?? 0,
-      materialTileCount
-    });
+    // Calculate bond scoring bonuses (only if manager exists)
+    const bondBonus = godTileManager
+      ? godTileManager.calculateBondScoringBonus({
+          gold: options.gold ?? 0,
+          materialTileCount
+        })
+      : { additiveMult: 0, multiplicativeMult: 1, description: [] as string[] };
 
     bondEffects.push(...bondBonus.description);
 
     // Apply bond bonuses to totals
     let totalChips = baseBreakdown.totalChips;
-    let totalMult = baseBreakdown.totalMult + bondBonus.additiveMult;
+    let totalMult = baseBreakdown.totalMult + bondBonus.additiveMult + permanentFanBoostMult;
 
     // Apply multiplicative mult from bonds
     totalMult *= bondBonus.multiplicativeMult;
@@ -335,7 +352,7 @@ export class Scoring {
     let finalScore = Math.floor(totalChips * totalMult);
 
     // Check for Gamble Lv3 roulette
-    if (godTileManager.shouldShowRoulette()) {
+    if (godTileManager?.shouldShowRoulette()) {
       const roulette = godTileManager.rollGambleRoulette();
       if (roulette) {
         rouletteResult = { operation: roulette.operation, value: roulette.value };

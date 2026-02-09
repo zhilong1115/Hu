@@ -278,13 +278,27 @@ export class FlowerCardManager {
           break;
         }
         case 'delete_value': {
-          const { value } = mod.params;
-          result = result.filter(t => t.value !== value);
+          let { value } = mod.params;
+          // If no value specified (no player UI yet), pick a random value
+          if (value === undefined) {
+            const values = [...new Set(result.map(t => t.value))];
+            if (values.length > 0) value = values[Math.floor(Math.random() * values.length)];
+          }
+          if (value !== undefined) {
+            result = result.filter(t => t.value !== value);
+          }
           break;
         }
         case 'delete_suit': {
-          const { suit } = mod.params;
-          result = result.filter(t => t.suit !== suit);
+          let { suit } = mod.params;
+          // If no suit specified, pick a random suit
+          if (suit === undefined) {
+            const suits = [...new Set(result.map(t => t.suit))];
+            if (suits.length > 0) suit = suits[Math.floor(Math.random() * suits.length)];
+          }
+          if (suit !== undefined) {
+            result = result.filter(t => t.suit !== suit);
+          }
           break;
         }
         case 'delete_honors': {
@@ -317,7 +331,12 @@ export class FlowerCardManager {
           break;
         }
         case 'keep_3_suits': {
-          const { removeSuit } = mod.params;
+          let { removeSuit } = mod.params;
+          // If no suit specified, pick a random number suit to remove
+          if (removeSuit === undefined) {
+            const numberSuits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+            removeSuit = numberSuits[Math.floor(Math.random() * numberSuits.length)];
+          }
           result = result.filter(t => t.suit !== removeSuit);
           break;
         }
@@ -337,6 +356,119 @@ export class FlowerCardManager {
               (tile as any).value = tile.value + 1;
             }
           }
+          break;
+        }
+        // ── Autumn season card effects (tile_change) ──
+        case 'value_plus': {
+          // Select random tiles, increase their value by delta
+          const { maxCount = 3, delta = 1 } = mod.params;
+          const candidates = result.filter(t => t.suit !== TileSuit.Wind && t.suit !== TileSuit.Dragon && t.value + delta <= 9);
+          const shuffled = candidates.sort(() => Math.random() - 0.5);
+          const toChange = shuffled.slice(0, Math.min(maxCount, shuffled.length));
+          for (const tile of toChange) {
+            (tile as any).value = tile.value + delta;
+          }
+          break;
+        }
+        case 'value_minus': {
+          const { maxCount = 3, delta = 1 } = mod.params;
+          const candidates = result.filter(t => t.suit !== TileSuit.Wind && t.suit !== TileSuit.Dragon && t.value - delta >= 1);
+          const shuffled = candidates.sort(() => Math.random() - 0.5);
+          const toChange = shuffled.slice(0, Math.min(maxCount, shuffled.length));
+          for (const tile of toChange) {
+            (tile as any).value = tile.value - delta;
+          }
+          break;
+        }
+        case 'value_any': {
+          // Change 1 random tile to random same-suit value
+          const { maxCount = 1 } = mod.params;
+          const candidates = result.filter(t => t.suit !== TileSuit.Wind && t.suit !== TileSuit.Dragon);
+          const shuffled = candidates.sort(() => Math.random() - 0.5);
+          const toChange = shuffled.slice(0, Math.min(maxCount, shuffled.length));
+          for (const tile of toChange) {
+            (tile as any).value = Math.floor(Math.random() * 9) + 1;
+          }
+          break;
+        }
+        case 'suit_any': {
+          // Change 1 random numbered tile to random suit (same value)
+          const { maxCount = 1 } = mod.params;
+          const numberSuits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+          const candidates = result.filter(t => numberSuits.includes(t.suit));
+          const shuffled = candidates.sort(() => Math.random() - 0.5);
+          const toChange = shuffled.slice(0, Math.min(maxCount, shuffled.length));
+          for (const tile of toChange) {
+            const otherSuits = numberSuits.filter(s => s !== tile.suit);
+            (tile as any).suit = otherSuits[Math.floor(Math.random() * otherSuits.length)];
+          }
+          break;
+        }
+        case 'any': {
+          // Change 1 random tile to any random tile
+          const { maxCount = 1 } = mod.params;
+          const numberSuits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+          const candidates = result.filter(t => numberSuits.includes(t.suit));
+          const shuffled = candidates.sort(() => Math.random() - 0.5);
+          const toChange = shuffled.slice(0, Math.min(maxCount, shuffled.length));
+          for (const tile of toChange) {
+            const newSuit = numberSuits[Math.floor(Math.random() * numberSuits.length)];
+            (tile as any).suit = newSuit;
+            (tile as any).value = Math.floor(Math.random() * 9) + 1;
+          }
+          break;
+        }
+        case 'swap_suit': {
+          // Swap suits between 2 random tiles
+          const numberSuits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+          const candidates = result.filter(t => numberSuits.includes(t.suit));
+          if (candidates.length >= 2) {
+            const shuffled = candidates.sort(() => Math.random() - 0.5);
+            const t1 = shuffled[0], t2 = shuffled[1];
+            const tempSuit = t1.suit;
+            (t1 as any).suit = t2.suit;
+            (t2 as any).suit = tempSuit;
+          }
+          break;
+        }
+        case 'swap_value': {
+          // Swap values between 2 random tiles
+          const numberSuits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+          const candidates = result.filter(t => numberSuits.includes(t.suit));
+          if (candidates.length >= 2) {
+            const shuffled = candidates.sort(() => Math.random() - 0.5);
+            const t1 = shuffled[0], t2 = shuffled[1];
+            const tempVal = t1.value;
+            (t1 as any).value = t2.value;
+            (t2 as any).value = tempVal;
+          }
+          break;
+        }
+        case 'shuffle_values': {
+          // Pick a random suit, shuffle all values of that suit
+          const numberSuits = [TileSuit.Wan, TileSuit.Tiao, TileSuit.Tong];
+          const targetSuit = numberSuits[Math.floor(Math.random() * numberSuits.length)];
+          const suitTiles = result.filter(t => t.suit === targetSuit);
+          const values = suitTiles.map(t => t.value);
+          // Fisher-Yates shuffle
+          for (let i = values.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [values[i], values[j]] = [values[j], values[i]];
+          }
+          suitTiles.forEach((t, i) => { (t as any).value = values[i]; });
+          break;
+        }
+        // ── Winter season cards that need player choice — apply random fallback ──
+        case 'freeze': {
+          // No-op: deck order is already set, just skip shuffle next round
+          // (Would need game state flag - mark as pending)
+          break;
+        }
+        case 'reorder_top': {
+          // Without UI, shuffle top 10 randomly (minor benefit)
+          const top10 = result.splice(-Math.min(10, result.length));
+          top10.sort(() => Math.random() - 0.5);
+          result.push(...top10);
           break;
         }
         default:

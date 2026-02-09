@@ -802,8 +802,8 @@ export class GameScene extends Phaser.Scene {
     const evalResult = FanEvaluator.evaluateHand(allTiles as Tile[]);
 
     if (!evalResult.isWinning) {
-      // Pihu (屁胡) fallback - give base 50 points
-      this.handlePihu();
+      this.showMessage('无法胡牌！手牌不构成有效牌型', '#ff4444');
+      AudioManager.getInstance().playSFX('tileDiscard');
       return;
     }
 
@@ -842,7 +842,8 @@ export class GameScene extends Phaser.Scene {
       this._godTileManager,
       {
         gold: this._gold,
-        meldMultiplier: this._meldMultiplier
+        meldMultiplier: this._meldMultiplier,
+        flowerCardManager: this._flowerCardManager
       },
       evalResult.decomposition
     );
