@@ -112,6 +112,10 @@ export class Hand {
     this._melds.push(meld);
   }
 
+  public clearMelds(): void {
+    this._melds = [];
+  }
+
   public sort(): void {
     this._tiles = sortTiles(this._tiles);
   }

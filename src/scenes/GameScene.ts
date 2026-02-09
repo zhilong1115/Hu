@@ -1122,18 +1122,32 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Draw replacement tiles (same count as discarded)
+    // Draw replacement tiles
     const baseDraw = Math.min(selectedTiles.length, this._drawPile.length);
-    for (let i = 0; i < baseDraw; i++) {
-      const tile = this._drawPile.pop()!;
-      this._hand.addTile(tile);
-    }
-    
-    // 浑水摸鱼 extra draws: draw extra tiles, let player see them, then pick
-    // For simplicity, draw extras only up to hand capacity (14)
-    if (extraDraws > 0 && this._drawPile.length > 0) {
-      const maxExtra = Math.min(extraDraws, this._drawPile.length, 14 - this._hand.tiles.length);
-      for (let i = 0; i < maxExtra; i++) {
+
+    if (extraDraws > 0 && this._drawPile.length >= baseDraw + extraDraws) {
+      // 浑水摸鱼: draw baseDraw + extraDraws tiles, let player pick baseDraw to keep
+      const totalDraw = baseDraw + Math.min(extraDraws, this._drawPile.length - baseDraw);
+      const drawnTiles: Tile[] = [];
+      for (let i = 0; i < totalDraw; i++) {
+        drawnTiles.push(this._drawPile.pop()!);
+      }
+
+      // Show selection overlay: pick baseDraw tiles to keep
+      const picked = await this.showTileSelectionOverlay(
+        drawnTiles,
+        baseDraw,
+        `浑水摸鱼: 选择 ${baseDraw} 张牌加入手牌`
+      );
+      for (const tile of picked) {
+        this._hand.addTile(tile);
+      }
+      // Return unpicked tiles to draw pile
+      const unpicked = drawnTiles.filter(t => !picked.includes(t));
+      this._drawPile.push(...unpicked);
+    } else {
+      // Normal draw (no extra draws)
+      for (let i = 0; i < baseDraw; i++) {
         const tile = this._drawPile.pop()!;
         this._hand.addTile(tile);
       }
@@ -1861,6 +1875,9 @@ export class GameScene extends Phaser.Scene {
     // Reset played melds
     this._playedMelds = [];
     this._meldMultiplier = 1;
+
+    // Clear melds from hand object (prevents stale meld accumulation)
+    this._hand.clearMelds();
 
     // Reset discards
     this._discardsRemaining = this.INITIAL_DISCARDS;
