@@ -18,9 +18,12 @@ import { GodTile } from '../roguelike/GodTile';
 import { FlowerCard } from '../roguelike/FlowerCard';
 import { FlowerCardManager } from '../roguelike/FlowerCardManager';
 import { AudioManager } from '../audio/AudioManager';
-import { DeckVariant, DECK_VARIANTS } from '../core/DeckVariant';
+import { DeckVariant, DECK_VARIANTS, getRedDoraChipBonus } from '../core/DeckVariant';
 import { GodTileManager } from '../core/GodTileManager';
 import { MaterialManager, materialManager } from '../core/MaterialManager';
+import { ALL_FLOWER_CARDS } from '../data/flowerCards';
+import { createFlowerCardFromData } from '../roguelike/FlowerCard';
+import { Material } from '../data/materials';
 
 /**
  * BossGameScene — Boss encounter gameplay
@@ -60,6 +63,13 @@ export class BossGameScene extends Phaser.Scene {
   // Buttons
   private _playHandButton!: Phaser.GameObjects.Text;
   private _discardButton!: Phaser.GameObjects.Text;
+  private _useCardButton!: Phaser.GameObjects.Text;
+
+  // Flower card selection overlay
+  private _flowerSelectionOverlay!: Phaser.GameObjects.Container;
+
+  // Pending flower effect: forces player to discard before the effect resolves
+  private _pendingFlowerEffect: string | null = null;
 
   // Game state
   private _currentScore: number = 0;
@@ -264,6 +274,11 @@ export class BossGameScene extends Phaser.Scene {
     this._flowerCardDisplay = new FlowerCardDisplay(this, centerX, flowerCardY);
     this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
 
+    // Listen to flower card events
+    this._flowerCardDisplay.on('cardSelected', (_card: FlowerCard | null) => {
+      // Card selection handled by FlowerCardDisplay
+    });
+
     // ── Action buttons ──
     const buttonY = height - 80;
 
@@ -280,6 +295,18 @@ export class BossGameScene extends Phaser.Scene {
       '弃牌',
       () => this.onDiscardClicked()
     );
+
+    // Use Flower Card button (below main buttons)
+    this._useCardButton = this.createButton(
+      centerX,
+      buttonY + 50,
+      '用花牌',
+      () => this.onUseFlowerCardClicked()
+    );
+    this._useCardButton.setStyle({ fontSize: '16px', padding: { x: 15, y: 8 } });
+
+    // ── Flower card selection overlay (hidden initially) ──
+    this.createFlowerSelectionOverlay();
 
     // ── Score popup ──
     this._scorePopup = new ScorePopup(this, centerX, height / 2);
@@ -393,8 +420,30 @@ export class BossGameScene extends Phaser.Scene {
       return;
     }
 
+    // ── Settle On-Win flower cards (兰/竹马/菊残) ──
+    const onWinResult = this._flowerCardManager.settleOnWinCards({
+      discardsRemaining: this._discardsRemaining,
+      chowCount: 0,
+      pongCount: 0,
+      meldCount: 0,
+      detectedFanNames: evalResult.fans.map(f => f.name),
+    });
+
+    // Show on-win card descriptions
+    onWinResult.descriptions.forEach((desc, i) => {
+      this.time.delayedCall(200 + i * 600, () => {
+        this.showMessage(`🌺 ${desc}`, '#ff88ff');
+      });
+    });
+
+    // Apply on-win gold bonus
+    if (onWinResult.goldBonus > 0) {
+      this._gold += onWinResult.goldBonus;
+      this.updateGoldDisplay();
+    }
+
     // Calculate score with bonds integration (same as GameScene)
-    const scoreBreakdown = Scoring.calculateScoreWithBonds(
+    const scoreBreakdownWithBonds = Scoring.calculateScoreWithBonds(
       handTiles,
       evalResult.fans,
       this._activeGodTiles,
@@ -407,6 +456,35 @@ export class BossGameScene extends Phaser.Scene {
       evalResult.decomposition
     );
 
+    let finalChips = scoreBreakdownWithBonds.totalChips;
+    let finalMult = scoreBreakdownWithBonds.totalMult;
+
+    // Apply on-win flower card multiplier bonuses
+    finalMult = (finalMult + onWinResult.multAdd) * onWinResult.multX;
+
+    // Apply Red Dora bonuses (if using Red Dora deck)
+    if (this._deckVariant.id === 'redDora') {
+      for (const tile of handTiles) {
+        finalChips += getRedDoraChipBonus(tile);
+      }
+    }
+
+    // Apply deck variant scoring modifiers
+    if (this._deckVariant.scoringModifier?.chipBonus) {
+      finalChips += this._deckVariant.scoringModifier.chipBonus;
+    }
+    if (this._deckVariant.scoringModifier?.multBonus) {
+      finalMult += this._deckVariant.scoringModifier.multBonus;
+    }
+
+    const modifiedScore = Math.floor(finalChips * finalMult);
+    const scoreBreakdown: ScoreBreakdown = {
+      ...scoreBreakdownWithBonds,
+      totalChips: finalChips,
+      totalMult: finalMult,
+      finalScore: modifiedScore
+    };
+
     // Apply Boss庄 score modifier
     let finalScore = scoreBreakdown.finalScore;
     if (this._bossBlind.effect.modifyScore) {
@@ -415,6 +493,38 @@ export class BossGameScene extends Phaser.Scene {
         scoreBreakdown.totalChips,
         scoreBreakdown.totalMult
       );
+    }
+
+    // Award gold for unused instant flower cards (+5 gold each per GAME_DESIGN)
+    const unusedCardGold = this._flowerCardManager.getUnusedCardGold();
+    if (unusedCardGold.gold > 0) {
+      this._gold += unusedCardGold.gold;
+      this.updateGoldDisplay();
+      this.showMessage(`未使用花牌奖励: +${unusedCardGold.gold}💰 (${unusedCardGold.count}张×5)`, '#ffd700');
+    }
+
+    // Update flower card display after on-win settlement consumed cards
+    this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
+
+    // Handle material breaking/degradation after hu
+    const breakReduction = this._godTileManager.getShatterReduction();
+    const breakModifier = 1 - breakReduction;
+    const breakResults = materialManager.handleBreaking(handTiles, breakModifier);
+    if (breakResults.length > 0) {
+      let breakGold = 0;
+      const breakMessages: string[] = [];
+      for (const br of breakResults) {
+        breakGold += br.goldEarned;
+        if (br.newMaterial) {
+          breakMessages.push(`${br.tileName}: ${br.oldMaterial} → ${br.newMaterial}`);
+        } else {
+          breakMessages.push(`${br.tileName}: ${br.oldMaterial} 碎裂!`);
+        }
+      }
+      this._gold += breakGold;
+      this.time.delayedCall(500, () => {
+        this.showMessage(`材质变化: ${breakMessages.join(', ')}`, '#ff8800');
+      });
     }
 
     // Highlight winning tiles sequentially
@@ -448,6 +558,19 @@ export class BossGameScene extends Phaser.Scene {
     this._handsRemaining--;
     this._currentScore += finalScore;
     this._gold += scoreBreakdown.totalGold;
+
+    // Apply unused discard bonus (+5 gold per unused discard)
+    const unusedDiscardBonus = this._discardsRemaining * 5;
+    if (unusedDiscardBonus > 0) {
+      this._gold += unusedDiscardBonus;
+      this.showMessage(`剩余弃牌奖励: +${unusedDiscardBonus}💰 (${this._discardsRemaining}×5)`, '#ffd700');
+    }
+
+    // Apply deck variant gold bonus
+    if (this._deckVariant.scoringModifier?.goldBonus) {
+      this._gold += this._deckVariant.scoringModifier.goldBonus;
+    }
+
     this.updateGoldDisplay();
 
     // Trigger boss abilities
@@ -480,7 +603,7 @@ export class BossGameScene extends Phaser.Scene {
     }
   }
 
-  private onDiscardClicked(): void {
+  private async onDiscardClicked(): Promise<void> {
     const selectedTiles = this._handDisplay.selectedTiles;
 
     if (selectedTiles.length === 0) {
@@ -488,20 +611,58 @@ export class BossGameScene extends Phaser.Scene {
       return;
     }
 
-    if (this._discardsRemaining <= 0) {
+    // In forced-discard mode, bypass normal discard count check
+    if (!this._pendingFlowerEffect && this._discardsRemaining <= 0) {
       this.showMessage('没有剩余弃牌次数', '#ff4444');
       return;
     }
 
+    // 寒梅傲雪: allow discarding any number (still counts as 1 discard)
+    const hasUnlimitedDiscard = this._flowerCardManager.hasDebuff('hanmei_unlimited_discard');
+    if (hasUnlimitedDiscard) {
+      this._flowerCardManager.removeDebuff('hanmei_unlimited_discard');
+      this.showMessage('寒梅傲雪: 弃任意数量!', '#ff88ff');
+    }
+
     // Discard selected tiles
-    const success = this._hand.discardTiles(selectedTiles);
+    const success = this._pendingFlowerEffect
+      ? this._hand.removeTiles(selectedTiles)
+      : this._hand.discardTiles(selectedTiles);
 
     if (!success) {
       this.showMessage('弃牌失败', '#ff4444');
       return;
     }
 
+    // 暗香浮动: +5 gold per discarded tile
+    if (this._flowerCardManager.hasDebuff('plum_anxiang_gold_discard')) {
+      this._flowerCardManager.removeDebuff('plum_anxiang_gold_discard');
+      const anxiangGold = selectedTiles.length * 5;
+      this._gold += anxiangGold;
+      this.updateGoldDisplay();
+      this.showMessage(`暗香浮动: +${anxiangGold}金币 (${selectedTiles.length}张×5)`, '#ff88ff');
+    }
+
+    // Handle bamboo material discard bonus
+    let bambooGold = 0;
+    for (const tile of selectedTiles) {
+      bambooGold += materialManager.handleBambooDiscard(tile);
+    }
     this._discardPile.push(...selectedTiles);
+    if (bambooGold > 0) {
+      this._gold += bambooGold;
+      this.updateGoldDisplay();
+      this.showMessage(`竹牌弃牌奖励: +${bambooGold}金币`, '#8BC34A');
+    }
+
+    // Apply gold bonus from 金蟾 god tile
+    const discardGoldBonus = this._godTileManager.getDiscardGoldBonus();
+    if (discardGoldBonus > 0) {
+      const totalBonus = discardGoldBonus * selectedTiles.length;
+      this._gold += totalBonus;
+      this.updateGoldDisplay();
+      this.showMessage(`金蟾: +${totalBonus}金币!`, '#ffd700');
+    }
 
     // Draw new tiles
     const tilesToDraw = Math.min(selectedTiles.length, this._drawPile.length);
@@ -510,11 +671,55 @@ export class BossGameScene extends Phaser.Scene {
       this._hand.addTile(tile);
     }
 
-    this._discardsRemaining--;
-    this._hand.setDiscardsRemaining(this._discardsRemaining);
+    // Deduct discard (skip if in forced-discard mode)
+    if (!this._pendingFlowerEffect) {
+      this._discardsRemaining--;
+      this._hand.setDiscardsRemaining(this._discardsRemaining);
+    }
 
     this._handDisplay.updateDisplay();
     this.updateDiscardsRemaining();
+    this.updateButtonStates();
+
+    // Handle pending flower effect after discard completes
+    if (this._pendingFlowerEffect) {
+      const effect = this._pendingFlowerEffect;
+      this._pendingFlowerEffect = null;
+      this.updateButtonStates();
+      await this.handlePostDiscardFlowerEffect(effect, selectedTiles);
+    }
+  }
+
+  private async handlePostDiscardFlowerEffect(effect: string, discardedTiles: Tile[]): Promise<void> {
+    if (effect === 'plum_sannong') {
+      const discardCount = discardedTiles.length;
+      const revealCount = discardCount + 3;
+      const pickCount = discardCount;
+
+      if (revealCount > 0 && this._drawPile.length > 0) {
+        const revealed: Tile[] = [];
+        for (let i = 0; i < Math.min(revealCount, this._drawPile.length); i++) {
+          revealed.push(this._drawPile.pop()!);
+        }
+        // Simplified: just add the first pickCount tiles (no overlay in boss scene)
+        const picked = revealed.slice(0, pickCount);
+        for (const tile of picked) {
+          this._hand.addTile(tile);
+        }
+        const unpicked = revealed.slice(pickCount);
+        this._drawPile.push(...unpicked);
+        this.showMessage(`梅花三弄: 获得 ${pickCount} 张牌!`, '#ff88ff');
+        this._handDisplay.updateDisplay();
+      }
+    } else if (effect === 'plum_yijian') {
+      if (this._drawPile.length > 0) {
+        // Simplified: draw 1 random tile
+        const tile = this._drawPile.pop()!;
+        this._hand.addTile(tile);
+        this.showMessage(`一剪梅: 获得 ${tile.displayName}!`, '#ff88ff');
+        this._handDisplay.updateDisplay();
+      }
+    }
     this.updateButtonStates();
   }
 
@@ -523,6 +728,25 @@ export class BossGameScene extends Phaser.Scene {
   private updateButtonStates(): void {
     const hasSelection = this._handDisplay.hasSelection;
     const has14Tiles = this._hand.tiles.length === 14;
+
+    // Forced-discard mode: disable play hand, only allow discard
+    if (this._pendingFlowerEffect) {
+      this._playHandButton.setAlpha(0.3);
+      this._playHandButton.setStyle({ color: '#666666' });
+
+      if (hasSelection) {
+        this._discardButton.setAlpha(1);
+        this._discardButton.setStyle({ color: '#ffdd00', backgroundColor: '#555500' });
+        this._discardButton.setText('弃牌 ⚡');
+      } else {
+        this._discardButton.setAlpha(0.7);
+        this._discardButton.setStyle({ color: '#ffdd00', backgroundColor: '#333300' });
+        this._discardButton.setText('弃牌 ⚡');
+      }
+      return;
+    }
+
+    this._discardButton.setText('弃牌');
 
     if (has14Tiles && this._handsRemaining > 0) {
       this._playHandButton.setAlpha(1);
@@ -609,6 +833,249 @@ export class BossGameScene extends Phaser.Scene {
     });
   }
 
+  /* ── Flower Card Actions ───────────────────────────────── */
+
+  private createFlowerSelectionOverlay(): void {
+    const centerX = this.scale.width / 2;
+    const centerY = this.scale.height / 2;
+
+    this._flowerSelectionOverlay = this.add.container(centerX, centerY);
+    this._flowerSelectionOverlay.setVisible(false);
+    this._flowerSelectionOverlay.setDepth(1000);
+
+    const bg = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.8);
+    bg.setInteractive();
+    this._flowerSelectionOverlay.add(bg);
+
+    const title = this.add.text(0, -150, '选择花牌', {
+      fontFamily: 'Courier New, monospace',
+      fontSize: '28px',
+      color: '#ffd700'
+    }).setOrigin(0.5);
+    this._flowerSelectionOverlay.add(title);
+  }
+
+  private showFlowerCardSelection(count: number): Promise<FlowerCard> {
+    return new Promise((resolve) => {
+      const shuffled = [...ALL_FLOWER_CARDS].sort(() => Math.random() - 0.5);
+      const options = shuffled.slice(0, count).map(data => createFlowerCardFromData(data));
+
+      this._flowerSelectionOverlay.each((child: Phaser.GameObjects.GameObject) => {
+        if (child.getData && child.getData('isCardButton')) {
+          child.destroy();
+        }
+      });
+
+      const cardWidth = 120;
+      const totalWidth = options.length * cardWidth + (options.length - 1) * 20;
+      const startX = -totalWidth / 2 + cardWidth / 2;
+
+      options.forEach((card, index) => {
+        const x = startX + index * (cardWidth + 20);
+        const y = 0;
+
+        const cardBg = this.add.rectangle(x, y, cardWidth, 160, 0x333355)
+          .setStrokeStyle(2, 0xffd700);
+        cardBg.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(cardBg);
+
+        const symbol = this.add.text(x, y - 50, card.getFlowerSymbol(), {
+          fontSize: '36px'
+        }).setOrigin(0.5);
+        symbol.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(symbol);
+
+        const name = this.add.text(x, y, card.name, {
+          fontFamily: 'Courier New, monospace',
+          fontSize: '14px',
+          color: '#ffffff',
+          wordWrap: { width: cardWidth - 10 },
+          align: 'center'
+        }).setOrigin(0.5);
+        name.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(name);
+
+        const desc = this.add.text(x, y + 40, card.description.substring(0, 20) + '...', {
+          fontFamily: 'Courier New, monospace',
+          fontSize: '10px',
+          color: '#aaaaaa',
+          wordWrap: { width: cardWidth - 10 },
+          align: 'center'
+        }).setOrigin(0.5);
+        desc.setData('isCardButton', true);
+        this._flowerSelectionOverlay.add(desc);
+
+        cardBg.setInteractive({ useHandCursor: true });
+        cardBg.on('pointerdown', () => {
+          AudioManager.getInstance().playSFX('buttonClick');
+          this._flowerSelectionOverlay.setVisible(false);
+          this._flowerCardManager.addCard(card);
+          this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
+          resolve(card);
+        });
+
+        cardBg.on('pointerover', () => cardBg.setFillStyle(0x555577));
+        cardBg.on('pointerout', () => cardBg.setFillStyle(0x333355));
+      });
+
+      const title = this._flowerSelectionOverlay.getAt(1) as Phaser.GameObjects.Text;
+      title.setText(`选择花牌 (${count}选1)`);
+      this._flowerSelectionOverlay.setVisible(true);
+    });
+  }
+
+  private async onUseFlowerCardClicked(): Promise<void> {
+    const selectedCard = this._flowerCardDisplay.getSelectedCard();
+
+    if (!selectedCard) {
+      this.showMessage('请先选择一张花牌', '#ff4444');
+      return;
+    }
+
+    if (selectedCard.isInstant() && this._gold < selectedCard.cost) {
+      this.showMessage(`金币不足！需要 ${selectedCard.cost} 金币`, '#ff4444');
+      return;
+    }
+
+    if (selectedCard.isInstant()) {
+      this._gold -= selectedCard.cost;
+      this.updateGoldDisplay();
+    }
+
+    const selectedTiles = this._handDisplay.selectedTiles;
+
+    const result = await this._flowerCardManager.useCard(selectedCard, {
+      hand: this._hand,
+      selectedTiles: selectedTiles,
+      drawPile: this._drawPile,
+      discardPile: this._discardPile,
+      handsRemaining: this._handsRemaining,
+      discardsRemaining: this._discardsRemaining,
+      currentScore: this._currentScore,
+      targetScore: this._targetScore,
+      roundNumber: this._roundNumber,
+      redrawHand: () => this.redrawHand(),
+      clearDebuffs: () => this._flowerCardManager.clearDebuffs()
+    });
+
+    if (!result.success) {
+      this.showMessage(selectedCard.getCannotPlayMessage(), '#ff4444');
+      return;
+    }
+
+    this._handsRemaining = result.context.handsRemaining;
+    this._discardsRemaining = result.context.discardsRemaining;
+
+    const goldDelta = (result.context as any).goldDelta || 0;
+    if (goldDelta > 0) {
+      this._gold += goldDelta;
+      this.updateGoldDisplay();
+      this.showMessage(`+${goldDelta} 金币`, '#ffdd00');
+    }
+
+    // Remove card from display
+    this._flowerCardDisplay.removeCard(selectedCard);
+
+    this.showMessage(`使用了 ${selectedCard.name}`, '#00ff00');
+
+    // Handle pending debuff effects
+    await this.handlePendingFlowerDebuffs();
+
+    this._handDisplay.updateDisplay();
+    this.updateHandsRemaining();
+    this.updateDiscardsRemaining();
+    this.updateButtonStates();
+  }
+
+  private redrawHand(): void {
+    const tiles = [...this._hand.tiles];
+    tiles.forEach(tile => this._hand.removeTile(tile));
+    this._drawPile.push(...tiles);
+
+    for (let i = this._drawPile.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this._drawPile[i], this._drawPile[j]] = [this._drawPile[j], this._drawPile[i]];
+    }
+
+    for (let i = 0; i < this.INITIAL_HAND_SIZE && this._drawPile.length > 0; i++) {
+      const tile = this._drawPile.pop()!;
+      this._hand.addTile(tile);
+    }
+
+    this._handDisplay.updateDisplay();
+  }
+
+  private async handlePendingFlowerDebuffs(): Promise<void> {
+    const mgr = this._flowerCardManager;
+
+    if (mgr.hasDebuff('plum_sannong_pending')) {
+      mgr.removeDebuff('plum_sannong_pending');
+      this._pendingFlowerEffect = 'plum_sannong';
+      this.showMessage('梅花三弄: 请先弃牌，然后从牌堆选牌', '#ff88ff');
+      this.updateButtonStates();
+    }
+
+    if (mgr.hasDebuff('plum_yijian_pending')) {
+      mgr.removeDebuff('plum_yijian_pending');
+      this._pendingFlowerEffect = 'plum_yijian';
+      this.showMessage('一剪梅: 请选择1张牌弃掉', '#ff88ff');
+      this.updateButtonStates();
+    }
+
+    if (mgr.hasDebuff('chrys_qiuju_random_flower')) {
+      mgr.removeDebuff('chrys_qiuju_random_flower');
+      await this.showFlowerCardSelection(3);
+      this.showMessage('秋菊傲霜: 获得花牌!', '#ffd700');
+    }
+
+    if (mgr.hasDebuff('chrys_chiju_2flowers')) {
+      mgr.removeDebuff('chrys_chiju_2flowers');
+      await this.showFlowerCardSelection(3);
+      await this.showFlowerCardSelection(3);
+      this.showMessage('持菊问道: 获得2张花牌!', '#ffd700');
+    }
+
+    if (mgr.hasDebuff('chrys_huangju_random_material')) {
+      mgr.removeDebuff('chrys_huangju_random_material');
+      this.applyRandomMaterialToTiles(1);
+    }
+
+    if (mgr.hasDebuff('chrys_jinju_3materials')) {
+      mgr.removeDebuff('chrys_jinju_3materials');
+      this.applyRandomMaterialToTiles(3);
+    }
+
+    if (mgr.hasDebuff('chrys_huangjin_all_gold')) {
+      mgr.removeDebuff('chrys_huangjin_all_gold');
+      const tiles = this._hand.tiles as Tile[];
+      for (const tile of tiles) {
+        tile.material = Material.GOLD;
+      }
+      this._handDisplay.updateDisplay();
+      this._handDisplay.refreshMaterialIndicators();
+      this.showMessage('满城尽带黄金甲: 所有手牌变为金牌!', '#ffd700');
+    }
+  }
+
+  private applyRandomMaterialToTiles(count: number): void {
+    const randomMaterials: Material[] = [Material.BRONZE, Material.SILVER, Material.GOLD, Material.BAMBOO, Material.ICE, Material.GLASS, Material.JADE];
+    const tiles = [...this._hand.tiles] as Tile[];
+    const candidates = tiles.filter(t => !t.material || t.material === Material.NONE);
+    const shuffled = candidates.sort(() => Math.random() - 0.5);
+    const toEnhance = shuffled.slice(0, Math.min(count, shuffled.length));
+
+    for (const tile of toEnhance) {
+      const mat = randomMaterials[Math.floor(Math.random() * randomMaterials.length)];
+      tile.material = mat;
+    }
+
+    if (toEnhance.length > 0) {
+      this._handDisplay.updateDisplay();
+      this._handDisplay.refreshMaterialIndicators();
+      this.showMessage(`添加材质到 ${toEnhance.length} 张牌!`, '#ffd700');
+    }
+  }
+
   /* ── Win/Lose Logic ────────────────────────────────────── */
 
   private checkWinLoseCondition(): void {
@@ -649,6 +1116,9 @@ export class BossGameScene extends Phaser.Scene {
     for (const tile of handTiles) {
       this._hand.removeTile(tile);
     }
+
+    // Clear melds from hand object (prevents stale meld accumulation)
+    this._hand.clearMelds();
 
     // Reset discards
     this._discardsRemaining = this.INITIAL_DISCARDS;
