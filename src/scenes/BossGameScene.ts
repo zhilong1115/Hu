@@ -206,8 +206,8 @@ export class BossGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const pad = 16;
-    const smallFont = '36px';
-    const medFont = '44px';
+    const smallFont = '18px';
+    const medFont = '20px';
     const fontFamily = 'Courier New, monospace';
 
     // ═══════════════════════════════════════════════════════
@@ -233,27 +233,27 @@ export class BossGameScene extends Phaser.Scene {
       fontFamily, fontSize: '18px', color: '#ff6666', fontStyle: 'bold'
     });
 
-    this._scoreText = this.add.text(statsX, statsY + 24, `分数: ${this._currentScore}`, {
+    this._scoreText = this.add.text(statsX, statsY + 22, `分数: ${this._currentScore}`, {
       fontFamily, fontSize: medFont, color: '#00ff00'
     });
 
-    this._targetScoreText = this.add.text(statsX, statsY + 46, `目标: ${this._targetScore}`, {
+    this._targetScoreText = this.add.text(statsX, statsY + 42, `目标: ${this._targetScore}`, {
       fontFamily, fontSize: medFont, color: '#ffaa00'
     });
 
-    this._handsRemainingText = this.add.text(statsX, statsY + 68, `手数: ${this._handsRemaining}`, {
+    this._handsRemainingText = this.add.text(statsX, statsY + 60, `手数: ${this._handsRemaining}`, {
       fontFamily, fontSize: smallFont, color: '#cccccc'
     });
 
-    this._discardsRemainingText = this.add.text(statsX, statsY + 88, `弃牌: ${this._discardsRemaining}`, {
+    this._discardsRemainingText = this.add.text(statsX, statsY + 78, `弃牌: ${this._discardsRemaining}`, {
       fontFamily, fontSize: smallFont, color: '#cccccc'
     });
 
-    this._playerHealthText = this.add.text(statsX, statsY + 110, `❤️ ${this._playerHealth}`, {
+    this._playerHealthText = this.add.text(statsX, statsY + 98, `❤️ ${this._playerHealth}`, {
       fontFamily, fontSize: medFont, color: '#ff6666'
     });
 
-    this._goldText = this.add.text(statsX, statsY + 132, `💰 ${this._gold}`, {
+    this._goldText = this.add.text(statsX, statsY + 118, `💰 ${this._gold}`, {
       fontFamily, fontSize: medFont, color: '#ffd700'
     });
 
@@ -319,8 +319,8 @@ export class BossGameScene extends Phaser.Scene {
 
     // ── BOTTOM-RIGHT: Action Buttons ──
     const btnBaseX = width - pad - 50;
-    const btnY = height - 120;
-    const btnGapV = 42;
+    const btnY = height - 130;
+    const btnGapV = 46;
 
     this._playHandButton = this.createButton(
       btnBaseX, btnY, '出牌', () => this.onPlayHandClicked()
@@ -352,10 +352,10 @@ export class BossGameScene extends Phaser.Scene {
   ): Phaser.GameObjects.Text {
     const button = this.add.text(x, y, label, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '18px',
+      fontSize: '26px',
       color: '#ffffff',
       backgroundColor: '#660000',
-      padding: { x: 25, y: 12 }
+      padding: { x: 20, y: 10 }
     });
     button.setOrigin(0.5);
     button.setInteractive({ useHandCursor: true });
@@ -1210,7 +1210,7 @@ export class BossGameScene extends Phaser.Scene {
 
     const title = this.add.text(0, -150, '选择花牌', {
       fontFamily: 'Courier New, monospace',
-      fontSize: '56px',
+      fontSize: '28px',
       color: '#ffd700'
     }).setOrigin(0.5);
     this._flowerSelectionOverlay.add(title);

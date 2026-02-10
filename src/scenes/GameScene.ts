@@ -256,8 +256,8 @@ export class GameScene extends Phaser.Scene {
     // ═══════════════════════════════════════════════════════
 
     const pad = 16;
-    const smallFont = '36px';
-    const medFont = '44px';
+    const smallFont = '18px';
+    const medFont = '20px';
     const fontFamily = 'Courier New, monospace';
 
     // ── TOP-LEFT: Game Stats ──
@@ -265,26 +265,26 @@ export class GameScene extends Phaser.Scene {
     const statsY = pad;
 
     this.add.text(statsX, statsY, `回合 ${this._roundNumber}`, {
-      fontFamily, fontSize: '40px', color: '#ffffff', fontStyle: 'bold'
+      fontFamily, fontSize: '22px', color: '#ffffff', fontStyle: 'bold'
     });
 
-    this._scoreText = this.add.text(statsX, statsY + 26, `分数: ${this._currentScore}`, {
+    this._scoreText = this.add.text(statsX, statsY + 24, `分数: ${this._currentScore}`, {
       fontFamily, fontSize: medFont, color: '#00ff00'
     });
 
-    this._targetScoreText = this.add.text(statsX, statsY + 48, `目标: ${this._targetScore}`, {
+    this._targetScoreText = this.add.text(statsX, statsY + 46, `目标: ${this._targetScore}`, {
       fontFamily, fontSize: medFont, color: '#ffaa00'
     });
 
-    this._handsRemainingText = this.add.text(statsX, statsY + 70, `手数: ${this._handsRemaining}`, {
+    this._handsRemainingText = this.add.text(statsX, statsY + 66, `手数: ${this._handsRemaining}`, {
       fontFamily, fontSize: smallFont, color: '#cccccc'
     });
 
-    this._discardsRemainingText = this.add.text(statsX, statsY + 90, `弃牌: ${this._discardsRemaining}`, {
+    this._discardsRemainingText = this.add.text(statsX, statsY + 84, `弃牌: ${this._discardsRemaining}`, {
       fontFamily, fontSize: smallFont, color: '#cccccc'
     });
 
-    this._goldText = this.add.text(statsX, statsY + 112, `💰 ${this._gold}`, {
+    this._goldText = this.add.text(statsX, statsY + 104, `💰 ${this._gold}`, {
       fontFamily, fontSize: medFont, color: '#ffd700'
     });
 
@@ -370,8 +370,8 @@ export class GameScene extends Phaser.Scene {
 
     // ── BOTTOM-RIGHT: Action Buttons ──
     const btnBaseX = width - pad - 50;
-    const btnY = height - 120;
-    const btnGapV = 42;
+    const btnY = height - 130;
+    const btnGapV = 46;
 
     this._playMeldButton = this.createButton(
       btnBaseX, btnY, '出牌', () => this.onPlayMeldClicked()
@@ -417,7 +417,7 @@ export class GameScene extends Phaser.Scene {
     // Title
     const title = this.add.text(0, -150, '选择花牌', {
       fontFamily: 'Courier New, monospace',
-      fontSize: '56px',
+      fontSize: '28px',
       color: '#ffd700'
     }).setOrigin(0.5);
     this._flowerSelectionOverlay.add(title);
@@ -516,10 +516,10 @@ export class GameScene extends Phaser.Scene {
   ): Phaser.GameObjects.Text {
     const button = this.add.text(x, y, label, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '40px',
+      fontSize: '26px',
       color: '#ffffff',
       backgroundColor: '#333333',
-      padding: { x: 25, y: 12 }
+      padding: { x: 20, y: 10 }
     });
     button.setOrigin(0.5);
     button.setInteractive({ useHandCursor: true });

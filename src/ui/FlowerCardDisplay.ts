@@ -27,9 +27,9 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
   private readonly DRAG_THRESHOLD = 60; // pixels past bottom edge to trigger use
 
   // Layout constants (compact for landscape top-center placement)
-  private readonly CARD_WIDTH = 180;
-  private readonly CARD_HEIGHT = 252;
-  private readonly CARD_SPACING = 8;
+  private readonly CARD_WIDTH = 56;
+  private readonly CARD_HEIGHT = 78;
+  private readonly CARD_SPACING = 6;
   private readonly MAX_VISIBLE_CARDS = 12; // display limit, no gameplay limit
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -126,7 +126,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     // Empty slot text
     const text = this.scene.add.text(0, 0, '空位', {
       fontFamily: 'Courier New, monospace',
-      fontSize: '36px',
+      fontSize: '14px',
       color: '#666666'
     });
     text.setOrigin(0.5);
@@ -154,38 +154,38 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     container.add(border);
 
     // Flower type emoji at top
-    const emoji = this.scene.add.text(0, -28, card.getFlowerSymbol(), {
+    const emoji = this.scene.add.text(0, -18, card.getFlowerSymbol(), {
       fontFamily: 'Arial',
-      fontSize: '56px'
+      fontSize: '22px'
     });
     emoji.setOrigin(0.5);
     container.add(emoji);
 
     // Card name
-    const nameText = this.scene.add.text(0, -4, card.name, {
+    const nameText = this.scene.add.text(0, 0, card.name, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '28px',
+      fontSize: '11px',
       color: '#ffffff',
-      wordWrap: { width: this.CARD_WIDTH - 8 },
+      wordWrap: { width: this.CARD_WIDTH - 6 },
       align: 'center'
     });
     nameText.setOrigin(0.5);
     container.add(nameText);
 
     // Cost at bottom
-    const costText = this.scene.add.text(0, 30, `${card.cost}金`, {
+    const costText = this.scene.add.text(0, 16, `${card.cost}金`, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '28px',
+      fontSize: '10px',
       color: '#ffd700'
     });
     costText.setOrigin(0.5);
     container.add(costText);
 
     // Rarity indicator
-    const rarityText = this.scene.add.text(-this.CARD_WIDTH / 2 + 8, -this.CARD_HEIGHT / 2 + 8,
+    const rarityText = this.scene.add.text(-this.CARD_WIDTH / 2 + 4, -this.CARD_HEIGHT / 2 + 4,
       this.getRarityText(card.rarity), {
       fontFamily: 'Courier New, monospace',
-      fontSize: '28px',
+      fontSize: '10px',
       color: this.getRarityColor(card.rarity)
     });
     rarityText.setOrigin(0);
@@ -206,12 +206,12 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
       this.dragOriginalPos = { x: container.x, y: container.y };
       this.selectedCard = card;
 
-      // Visual feedback: scale up + glow
+      // Visual feedback: scale up large so player can read card
       this.scene.tweens.add({
         targets: container,
-        scaleX: 1.15,
-        scaleY: 1.15,
-        duration: 100,
+        scaleX: 2.0,
+        scaleY: 2.0,
+        duration: 150,
         ease: 'Sine.Out'
       });
       border.setStrokeStyle(4, 0x00ffff);
@@ -412,7 +412,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
 
     this.tooltipText = this.scene.add.text(tooltipX, tooltipY, tooltipContent, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '32px',
+      fontSize: '14px',
       color: '#ffffff',
       wordWrap: { width: maxWidth - padding * 2 }
     });

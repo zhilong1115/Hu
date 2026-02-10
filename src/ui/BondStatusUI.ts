@@ -24,9 +24,9 @@ export class BondStatusUI extends Phaser.GameObjects.Container {
   private godTileManager: GodTileManager;
   private tooltip: Phaser.GameObjects.Container | null = null;
   
-  private readonly BOND_SIZE = 96;
-  private readonly BOND_GAP = 12;
-  private readonly PANEL_PADDING = 10;
+  private readonly BOND_SIZE = 56;
+  private readonly BOND_GAP = 8;
+  private readonly PANEL_PADDING = 8;
   
   // Bond order for display
   private readonly BOND_ORDER: GodTileBond[] = [
@@ -79,7 +79,7 @@ export class BondStatusUI extends Phaser.GameObjects.Container {
       '羁绊',
       {
         fontFamily: 'Courier New, monospace',
-        fontSize: '48px',
+        fontSize: '14px',
         color: '#888888'
       }
     ).setOrigin(0.5, 1);
@@ -123,7 +123,7 @@ export class BondStatusUI extends Phaser.GameObjects.Container {
       this.BOND_SIZE / 2 - 2,
       bondInfo.icon,
       {
-        fontSize: '48px'
+        fontSize: '24px'
       }
     ).setOrigin(0.5);
     container.add(icon);
@@ -307,7 +307,7 @@ export class BondStatusUI extends Phaser.GameObjects.Container {
         line,
         {
           fontFamily: 'Courier New, monospace',
-          fontSize: '22px',
+          fontSize: '12px',
           color: isActive ? '#00ff00' : (line.startsWith('○') ? '#888888' : '#ffffff'),
           wordWrap: { width: maxWidth - padding * 2 }
         }
