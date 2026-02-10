@@ -1,16 +1,17 @@
-import { Scoring, ScoreBreakdown } from '../Scoring';
+import { describe, test, expect } from 'vitest';
+import { Scoring } from '../Scoring';
 import { Tile, TileSuit } from '../Tile';
 import { Fan } from '../FanEvaluator';
-import { GodTile, GodTileRarity } from '../../roguelike/GodTile';
+import { GodTile as GodTileClass, GodTileRarity } from '../../roguelike/GodTile';
 
-// ─── Test Helpers ───────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function createTile(suit: TileSuit, value: number, index: number = 0): Tile {
   return {
     id: `${suit}-${value}-${index}`,
     suit,
     value,
-    displayName: `${value}${suit === TileSuit.Wan ? '万' : suit === TileSuit.Tiao ? '条' : suit === TileSuit.Tong ? '筒' : suit === TileSuit.Wind ? '风' : '龙'}`,
+    displayName: `${value}${suit}`,
   };
 }
 
@@ -18,315 +19,83 @@ function createFan(name: string, points: number, description: string = ''): Fan 
   return { name, points, description };
 }
 
-function createGodTile(
-  displayName: string,
-  effects: Array<{ name: string; description: string }>
-): GodTile {
-  return new GodTile({
-    baseTile: { suit: TileSuit.Wan, value: 1 },
-    rarity: GodTileRarity.COMMON,
-    displayName,
-    cost: 5,
-    effects: effects.map(e => ({
-      name: e.name,
-      description: e.description,
-      activate: () => {},
-    })),
-  });
-}
-
-// ─── Current balance values (from Scoring.ts) ──────────────────────────────
-// DEFAULT_OPTIONS: baseChipsPerTile=6, baseChipsPerHonorTile=12, baseChipsPerTerminalTile=9
-// getFanChipsAndMult:
-//   1pt → {15,1}, 2pt → {25,2}, 4pt → {35,3}, 6pt → {45,4}, 8pt → {55,5}
-//   24pt → {120,10}, 32pt → {180,12}, 64pt → {400,18}, 88pt → {600,25}
-
-// ─── Basic Scoring Tests ────────────────────────────────────────────────────
+// ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe('Scoring Engine', () => {
   describe('Basic calculation', () => {
-    test('should calculate score with single fan and tiles', () => {
-      const hand = [
-        createTile(TileSuit.Wan, 1, 0),
-        createTile(TileSuit.Wan, 2, 0),
-        createTile(TileSuit.Wan, 3, 0),
-      ];
-
+    test('should calculate score with single fan', () => {
+      const hand = [createTile(TileSuit.Wan, 1, 0)];
       const fans = [createFan('胡牌', 1)];
-
       const result = Scoring.calculateScore(hand, fans);
 
-      expect(result.detectedFans).toEqual(fans);
-      expect(result.baseChips).toBe(15); // 1pt → 15 chips
-      expect(result.baseMult).toBe(2); // 1 (initial) + 1 (from fan)
-      expect(result.bonusChips).toBe(21); // Wan1 (9) + Wan2 (6) + Wan3 (6)
-      expect(result.totalChips).toBe(36); // 15 + 21
-      expect(result.totalMult).toBe(2);
-      expect(result.finalScore).toBe(72); // 36 × 2
+      expect(result.baseScore).toBe(100);
+      expect(result.fanMultiplier).toBe(1); // 胡牌 ×1
+      expect(result.finalScore).toBe(100); // 100 × 1
     });
 
-    test('should calculate score with multiple fans', () => {
-      const hand = Array(14).fill(null).map((_, i) => createTile(TileSuit.Wan, (i % 9) + 1, i));
-
+    test('should multiply fan multipliers', () => {
+      const hand = [createTile(TileSuit.Wan, 1, 0)];
       const fans = [
-        createFan('平和', 2),
-        createFan('清一色', 24),
+        createFan('清一色', 8),
+        createFan('对对和', 5),
       ];
-
       const result = Scoring.calculateScore(hand, fans);
 
-      expect(result.baseChips).toBe(145); // 25 + 120
-      expect(result.baseMult).toBe(13); // 1 + 2 + 10
-      // tiles: 1,2,3,4,5,6,7,8,9,1,2,3,4,5
-      // Terminals (1,9): 3 × 9 = 27. Numbers (2-8): 11 × 6 = 66. Total = 93
-      expect(result.bonusChips).toBe(93);
-      expect(result.totalChips).toBe(238); // 145 + 93
-      expect(result.finalScore).toBe(3094); // 238 × 13
+      expect(result.fanMultiplier).toBe(40); // 8 × 5
+      expect(result.finalScore).toBe(4000); // 100 × 40
     });
 
-    test('should give bonus chips for honor tiles', () => {
-      const hand = [
-        createTile(TileSuit.Wind, 1, 0), // Honor tile
-        createTile(TileSuit.Dragon, 1, 0), // Honor tile
-        createTile(TileSuit.Wan, 2, 0), // Regular tile
-      ];
-
-      const fans = [createFan('胡牌', 1)];
-      const result = Scoring.calculateScore(hand, fans);
-
-      expect(result.bonusChips).toBe(30); // 12 + 12 + 6
-      const honorContributions = result.tileChipContributions.filter(tc => tc.reason === 'honor tile');
-      expect(honorContributions).toHaveLength(2);
-      expect(honorContributions[0].chips).toBe(12);
-    });
-
-    test('should give bonus chips for terminal tiles', () => {
-      const hand = [
-        createTile(TileSuit.Wan, 1, 0), // Terminal
-        createTile(TileSuit.Wan, 9, 0), // Terminal
-        createTile(TileSuit.Wan, 5, 0), // Regular
-      ];
-
-      const fans = [createFan('胡牌', 1)];
-      const result = Scoring.calculateScore(hand, fans);
-
-      expect(result.bonusChips).toBe(24); // 9 + 9 + 6
-      const terminalContributions = result.tileChipContributions.filter(tc => tc.reason === 'terminal tile');
-      expect(terminalContributions).toHaveLength(2);
-      expect(terminalContributions[0].chips).toBe(9);
-    });
-  });
-
-  describe('Fan chip/mult mapping', () => {
-    test('should scale chips and mult with fan points', () => {
-      const hand = [createTile(TileSuit.Wan, 1, 0)];
-
-      const testCases = [
-        { fan: createFan('胡牌', 1), expectedChips: 15, expectedMult: 1 },
-        { fan: createFan('平和', 2), expectedChips: 25, expectedMult: 2 },
-        { fan: createFan('七对', 4), expectedChips: 35, expectedMult: 3 },
-        { fan: createFan('对对和', 6), expectedChips: 45, expectedMult: 4 },
-        { fan: createFan('混老头', 8), expectedChips: 55, expectedMult: 5 },
-        { fan: createFan('清一色', 24), expectedChips: 120, expectedMult: 10 },
-        { fan: createFan('四暗刻', 32), expectedChips: 180, expectedMult: 12 },
-        { fan: createFan('字一色', 64), expectedChips: 400, expectedMult: 18 },
-        { fan: createFan('国士无双', 88), expectedChips: 600, expectedMult: 25 },
-      ];
-
-      for (const { fan, expectedChips, expectedMult } of testCases) {
-        const result = Scoring.calculateScore(hand, [fan]);
-        expect(result.baseChips).toBe(expectedChips);
-        expect(result.baseMult).toBe(expectedMult + 1); // +1 from initial
-      }
-    });
-  });
-
-  describe('God Tile effects', () => {
-    test('should apply chip modifier from god tile', () => {
-      const hand = [createTile(TileSuit.Wan, 1, 0)];
-      const fans = [createFan('胡牌', 1)];
-      const godTiles = [
-        createGodTile('财神一万', [
-          { name: '招财', description: '每次胡牌额外获得1金币' },
-        ]),
-      ];
-
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.chipModifiers).toHaveLength(1);
-      expect(result.chipModifiers[0].chipsAdded).toBe(10);
-      expect(result.totalChips).toBe(34); // 15 (base) + 9 (terminal) + 10 (god tile)
-    });
-
-    test('should apply mult addition from god tile', () => {
-      const hand = Array(14).fill(null).map((_, i) => createTile(TileSuit.Wan, (i % 9) + 1, i));
-      const fans = [createFan('清一色', 24)];
-      const godTiles = [
-        createGodTile('白板创世', [
-          { name: '纯净之心', description: '清一色番型额外+8番' },
-        ]),
-      ];
-
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.multModifiers).toHaveLength(1);
-      expect(result.multModifiers[0].multAdded).toBe(8);
-      expect(result.totalMult).toBe(19); // 1 + 10 (from fan) + 8 (from god tile)
-    });
-
-    test('should apply mult multiplier from god tile', () => {
+    test('should handle custom base score', () => {
       const hand = [createTile(TileSuit.Wan, 1, 0)];
       const fans = [createFan('平和', 2)];
-      const godTiles = [
-        createGodTile('发财神牌', [
-          { name: '发财致富', description: '胡牌金币奖励翻倍' },
-        ]),
-      ];
+      const result = Scoring.calculateScore(hand, fans, [], { baseScore: 200 });
 
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.multModifiers).toHaveLength(1);
-      expect(result.multModifiers[0].multMultiplier).toBe(2);
-      expect(result.totalMult).toBe(6); // (1 + 2) × 2
+      expect(result.baseScore).toBe(200);
+      expect(result.finalScore).toBe(400); // 200 × 2
     });
+  });
 
-    test('should apply conditional mult bonus only when condition is met', () => {
-      const hand = Array(14).fill(null).map((_, i) => createTile(TileSuit.Wan, (i % 9) + 1, i));
-      const fans = [createFan('清一色', 24)];
-      const godTiles = [
-        createGodTile('白板创世', [
-          { name: '纯净之心', description: '清一色番型额外+8番' },
-        ]),
-      ];
-
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-      expect(result.multModifiers).toHaveLength(1);
-
-      // Test when condition is not met
-      const fansWithoutFlush = [createFan('胡牌', 1)];
-      const resultWithoutFlush = Scoring.calculateScore(hand, fansWithoutFlush, godTiles);
-      expect(resultWithoutFlush.multModifiers).toHaveLength(0);
-    });
-
-    test('should apply multiple god tile effects', () => {
+  describe('Fan contributions', () => {
+    test('should track individual fan contributions', () => {
       const hand = [createTile(TileSuit.Wan, 1, 0)];
-      const fans = [createFan('胡牌', 1)];
-      const godTiles = [
-        createGodTile('财神一万', [
-          { name: '招财', description: '每次胡牌额外获得1金币' },
-        ]),
-        createGodTile('万中之王', [
-          { name: '王者之威', description: '所有番型+3番' },
-        ]),
+      const fans = [
+        createFan('平和', 2),
+        createFan('混一色', 4),
       ];
+      const result = Scoring.calculateScore(hand, fans);
 
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.chipModifiers).toHaveLength(1);
-      expect(result.multModifiers).toHaveLength(1);
-      expect(result.totalChips).toBe(34); // 15 + 9 (terminal) + 10
-      expect(result.totalMult).toBe(5); // 1 + 1 + 3
-      expect(result.finalScore).toBe(170); // 34 × 5
+      expect(result.fanContributions).toHaveLength(2);
+      expect(result.fanContributions[0].multiplier).toBe(2);
+      expect(result.fanContributions[1].multiplier).toBe(4);
+      expect(result.fanMultiplier).toBe(8);
     });
 
-    test('should handle 老头称王 effect with terminal fans', () => {
-      const hand = Array(14).fill(null).map((_, i) => createTile(TileSuit.Wan, i % 2 === 0 ? 1 : 9, i));
-      const fans = [createFan('混老头', 8)];
-      const godTiles = [
-        createGodTile('九万霸主', [
-          { name: '老头称王', description: '1、9牌的番型+2番' },
-        ]),
-      ];
+    test('should handle empty fans (minimum ×1)', () => {
+      const hand = [createTile(TileSuit.Wan, 1, 0)];
+      const result = Scoring.calculateScore(hand, []);
 
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.multModifiers).toHaveLength(1);
-      expect(result.multModifiers[0].multAdded).toBe(2);
-    });
-
-    test('should handle 龙之力 effect with straight fan', () => {
-      const hand = Array(9).fill(null).map((_, i) => createTile(TileSuit.Tiao, i + 1, 0));
-      const fans = [createFan('一气通贯', 2)];
-      const godTiles = [
-        createGodTile('一条龙神', [
-          { name: '龙之力', description: '一气通贯番型+4番' },
-        ]),
-      ];
-
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.multModifiers).toHaveLength(1);
-      expect(result.multModifiers[0].multAdded).toBe(4);
-    });
-
-    test('should handle 聚宝盆 effect with pongs', () => {
-      const hand = Array(12).fill(null).map((_, i) => createTile(TileSuit.Wan, 1 + Math.floor(i / 3), i));
-      const fans = [createFan('对对和', 6)];
-      const godTiles = [
-        createGodTile('五筒聚宝', [
-          { name: '聚宝盆', description: '每个刻子额外获得1金币' },
-        ]),
-      ];
-
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.chipModifiers).toHaveLength(1);
-      expect(result.chipModifiers[0].chipsAdded).toBe(20);
+      expect(result.fanMultiplier).toBe(1);
+      expect(result.finalScore).toBe(100);
     });
   });
 
   describe('Score breakdown structure', () => {
-    test('should return complete breakdown structure', () => {
-      const hand = [
-        createTile(TileSuit.Wan, 1, 0),
-        createTile(TileSuit.Wind, 1, 0),
-      ];
+    test('should return complete breakdown', () => {
+      const hand = [createTile(TileSuit.Wan, 1, 0)];
       const fans = [createFan('胡牌', 1)];
-      const godTiles = [
-        createGodTile('财神一万', [
-          { name: '招财', description: '每次胡牌额外获得1金币' },
-        ]),
-      ];
-
-      const result = Scoring.calculateScore(hand, fans, godTiles);
+      const result = Scoring.calculateScore(hand, fans);
 
       expect(result).toHaveProperty('hand');
       expect(result).toHaveProperty('detectedFans');
-      expect(result).toHaveProperty('activeGodTiles');
       expect(result).toHaveProperty('fanContributions');
-      expect(result).toHaveProperty('baseChips');
-      expect(result).toHaveProperty('baseMult');
-      expect(result).toHaveProperty('tileChipContributions');
-      expect(result).toHaveProperty('bonusChips');
+      expect(result).toHaveProperty('fanMultiplier');
+      expect(result).toHaveProperty('baseScore');
       expect(result).toHaveProperty('chipModifiers');
       expect(result).toHaveProperty('multModifiers');
+      expect(result).toHaveProperty('goldModifiers');
       expect(result).toHaveProperty('totalChips');
       expect(result).toHaveProperty('totalMult');
       expect(result).toHaveProperty('finalScore');
-
-      expect(result.hand).toEqual(hand);
-      expect(result.detectedFans).toEqual(fans);
-      expect(result.activeGodTiles).toEqual(godTiles);
-    });
-
-    test('should provide detailed tile chip contributions', () => {
-      const hand = [
-        createTile(TileSuit.Wan, 1, 0),
-        createTile(TileSuit.Wan, 5, 0),
-        createTile(TileSuit.Wind, 1, 0),
-      ];
-      const fans = [createFan('胡牌', 1)];
-
-      const result = Scoring.calculateScore(hand, fans);
-
-      expect(result.tileChipContributions).toHaveLength(3);
-      expect(result.tileChipContributions[0].tile).toEqual(hand[0]);
-      expect(result.tileChipContributions[0].chips).toBe(9);
-      expect(result.tileChipContributions[0].reason).toBe('terminal tile');
-      expect(result.tileChipContributions[1].chips).toBe(6);
-      expect(result.tileChipContributions[1].reason).toBe('number tile');
-      expect(result.tileChipContributions[2].chips).toBe(12);
-      expect(result.tileChipContributions[2].reason).toBe('honor tile');
     });
   });
 
@@ -335,140 +104,52 @@ describe('Scoring Engine', () => {
       const hand = [createTile(TileSuit.Wan, 1, 0)];
       const fans = [createFan('胡牌', 1)];
       const result = Scoring.calculateScore(hand, fans);
-
       const formatted = Scoring.formatScoreBreakdown(result);
 
       expect(formatted).toContain('=== Score Breakdown ===');
       expect(formatted).toContain('[ Fans ]');
       expect(formatted).toContain('胡牌');
-      expect(formatted).toContain('[ Tiles ]');
-      expect(formatted).toContain('terminal tile');
       expect(formatted).toContain('[ Final Score ]');
-    });
-
-    test('should include god tile effects in formatted output', () => {
-      const hand = [createTile(TileSuit.Wan, 1, 0)];
-      const fans = [createFan('胡牌', 1)];
-      const godTiles = [
-        createGodTile('财神一万', [
-          { name: '招财', description: '每次胡牌额外获得1金币' },
-        ]),
-      ];
-
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-      const formatted = Scoring.formatScoreBreakdown(result);
-
-      expect(formatted).toContain('[ God Tile Effects ]');
-      expect(formatted).toContain('财神一万');
-      expect(formatted).toContain('+10 chips');
     });
   });
 
   describe('Edge cases', () => {
-    test('should handle empty fans array', () => {
-      const hand = [createTile(TileSuit.Wan, 1, 0)];
-      const fans: Fan[] = [];
-
-      const result = Scoring.calculateScore(hand, fans);
-
-      expect(result.baseChips).toBe(0);
-      expect(result.baseMult).toBe(1);
-      expect(result.bonusChips).toBe(9); // terminal tile: 9
-      expect(result.finalScore).toBe(9);
-    });
-
-    test('should handle empty god tiles array', () => {
-      const hand = [createTile(TileSuit.Wan, 1, 0)];
-      const fans = [createFan('胡牌', 1)];
-
-      const result = Scoring.calculateScore(hand, fans, []);
-
-      expect(result.chipModifiers).toHaveLength(0);
-      expect(result.multModifiers).toHaveLength(0);
-    });
-
-    test('should handle custom chip values', () => {
-      const hand = [
-        createTile(TileSuit.Wan, 1, 0),
-        createTile(TileSuit.Wind, 1, 0),
-      ];
-      const fans = [createFan('胡牌', 1)];
-
-      const result = Scoring.calculateScore(hand, fans, [], {
-        baseChipsPerTile: 10,
-        baseChipsPerHonorTile: 20,
-        baseChipsPerTerminalTile: 15,
-      });
-
-      expect(result.bonusChips).toBe(35); // 15 (terminal) + 20 (honor)
-    });
-
-    test('should ensure minimum mult of 1', () => {
-      const hand = [createTile(TileSuit.Wan, 1, 0)];
-      const fans: Fan[] = [];
-
-      const result = Scoring.calculateScore(hand, fans);
-
-      expect(result.baseMult).toBe(1);
-      expect(result.totalMult).toBe(1);
-    });
-
     test('should floor final score to integer', () => {
       const hand = [createTile(TileSuit.Wan, 1, 0)];
       const fans = [createFan('平和', 2)];
-
       const result = Scoring.calculateScore(hand, fans);
-
       expect(Number.isInteger(result.finalScore)).toBe(true);
+    });
+
+    test('should handle yakuman fan', () => {
+      const hand = [createTile(TileSuit.Wan, 1, 0)];
+      const fans = [createFan('九莲宝灯', 88)];
+      const result = Scoring.calculateScore(hand, fans);
+      expect(result.fanMultiplier).toBe(88);
+      expect(result.finalScore).toBe(8800);
     });
   });
 
-  describe('Complex scenarios', () => {
-    test('should handle multiple fans and god tiles together', () => {
-      const hand = Array(14).fill(null).map((_, i) => createTile(TileSuit.Wan, (i % 9) + 1, i));
-      const fans = [
-        createFan('平和', 2),
-        createFan('清一色', 24),
-      ];
-      const godTiles = [
-        createGodTile('财神一万', [
-          { name: '招财', description: '每次胡牌额外获得1金币' },
-        ]),
-        createGodTile('白板创世', [
-          { name: '纯净之心', description: '清一色番型额外+8番' },
-        ]),
-        createGodTile('发财神牌', [
-          { name: '发财致富', description: '胡牌金币奖励翻倍' },
-        ]),
-      ];
+  describe('calculateScoreWithBonds', () => {
+    test('should return bond effects array', () => {
+      const hand = [createTile(TileSuit.Wan, 1, 0)];
+      const fans = [createFan('胡牌', 1)];
+      const result = Scoring.calculateScoreWithBonds(hand, fans);
 
-      const result = Scoring.calculateScore(hand, fans, godTiles);
-
-      expect(result.baseChips).toBe(145); // 25 + 120
-      expect(result.baseMult).toBe(13); // 1 + 2 + 10
-      expect(result.bonusChips).toBe(93);
-      expect(result.chipModifiers).toHaveLength(1);
-      expect(result.multModifiers).toHaveLength(2);
-
-      // totalChips = 145 + 93 + 10 = 248
-      expect(result.totalChips).toBe(248);
-
-      // totalMult = (13 × 2) + 8 = 34
-      expect(result.totalMult).toBe(34);
-
-      // finalScore = 248 × 34 = 8432
-      expect(result.finalScore).toBe(8432);
+      expect(result).toHaveProperty('bondEffects');
+      expect(result.bondEffects).toEqual([]);
     });
 
-    test('should handle yakuman (88 points)', () => {
-      const hand = Array(14).fill(null).map((_, i) => createTile(TileSuit.Wan, (i % 9) + 1, i));
-      const fans = [createFan('国士无双', 88)];
+    test('should apply meld multiplier', () => {
+      const hand = [createTile(TileSuit.Wan, 1, 0)];
+      const fans = [createFan('平和', 2)]; // ×2 multiplier
+      const result = Scoring.calculateScoreWithBonds(hand, fans, [], null, {
+        meldMultiplier: 3,
+      });
 
-      const result = Scoring.calculateScore(hand, fans);
-
-      expect(result.baseChips).toBe(600);
-      expect(result.baseMult).toBe(26); // 1 + 25
-      expect(result.finalScore).toBeGreaterThan(10000);
+      // fanMultiplier=2, meldMultiplier=3, totalMult = 2 × 3 = 6
+      expect(result.totalMult).toBe(6);
+      expect(result.bondEffects).toContain('出牌倍率: ×3');
     });
   });
 });

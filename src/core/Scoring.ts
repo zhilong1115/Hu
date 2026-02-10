@@ -319,8 +319,8 @@ export class Scoring {
       }
     }
 
-    // If no GodTileManager and no permanent boosts, return base breakdown
-    if (!godTileManager && permanentFanBoostMult === 0) {
+    // If no GodTileManager, no permanent boosts, and no meld multiplier, return base breakdown
+    if (!godTileManager && permanentFanBoostMult === 0 && (!options.meldMultiplier || options.meldMultiplier <= 1)) {
       return { ...baseBreakdown, bondEffects, rouletteResult };
     }
 

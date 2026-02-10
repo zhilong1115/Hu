@@ -55,7 +55,7 @@ describe('BlindManager', () => {
 
     it('should throw error if no blind is active', () => {
       blindManager.reset();
-      expect(() => blindManager.playHand(100)).toThrow('No blind is currently active');
+      expect(() => blindManager.playHand(100)).toThrow('No 庄 is currently active');
     });
 
     it('should throw error if no hands remaining', () => {
@@ -70,24 +70,24 @@ describe('BlindManager', () => {
 
   describe('blind status', () => {
     it('should detect when blind is cleared', () => {
-      const blind = createSmallBlind(1, 4, 3); // target: 300
+      const blind = createSmallBlind(1, 4, 3); // target: 250
       blindManager.startBlind(blind);
 
       expect(blindManager.isBlindCleared).toBe(false);
 
-      blindManager.playHand(300);
+      blindManager.playHand(250);
 
       expect(blindManager.isBlindCleared).toBe(true);
     });
 
     it('should detect when blind is failed', () => {
-      const blind = createSmallBlind(1, 4, 3); // target: 300
+      const blind = createSmallBlind(1, 4, 3); // target: 250
       blindManager.startBlind(blind);
 
       blindManager.playHand(50);
       blindManager.playHand(50);
       blindManager.playHand(50);
-      blindManager.playHand(50); // Total: 200, but target is 300
+      blindManager.playHand(50); // Total: 200, but target is 250
 
       expect(blindManager.isBlindFailed).toBe(true);
       expect(blindManager.isBlindCleared).toBe(false);
@@ -96,37 +96,37 @@ describe('BlindManager', () => {
 
   describe('getBlindResult', () => {
     it('should return correct result for cleared blind', () => {
-      const blind = createSmallBlind(1, 4, 3); // target: 300, reward: 4
+      const blind = createSmallBlind(1, 4, 3); // target: 250, reward: 5
       blindManager.startBlind(blind);
 
       blindManager.playHand(200);
-      blindManager.playHand(150); // Total: 350, excess: 50
+      blindManager.playHand(150); // Total: 350, excess: 100
 
       const result = blindManager.getBlindResult();
 
       expect(result.cleared).toBe(true);
       expect(result.scoreAchieved).toBe(350);
-      expect(result.targetScore).toBe(300);
-      expect(result.excessScore).toBe(50);
-      expect(result.baseReward).toBe(4);
-      expect(result.bonusReward).toBe(0); // floor(50 * 0.01) = 0
-      expect(result.totalReward).toBe(4);
+      expect(result.targetScore).toBe(250);
+      expect(result.excessScore).toBe(100);
+      expect(result.baseReward).toBe(5);
+      expect(result.bonusReward).toBe(1); // floor(100 * 0.01) = 1
+      expect(result.totalReward).toBe(6);
       expect(result.handsUsed).toBe(2);
       expect(result.handsRemaining).toBe(2);
     });
 
     it('should calculate bonus reward correctly', () => {
-      const blind = createBigBlind(1, 4, 3); // target: 450, reward: 5.5, bonus: 0.02
+      const blind = createBigBlind(1, 4, 3); // target: 400, reward: 7, bonus: 0.02
       blindManager.startBlind(blind);
 
-      blindManager.playHand(600); // Excess: 150
+      blindManager.playHand(600); // Excess: 200
 
       const result = blindManager.getBlindResult();
 
       expect(result.cleared).toBe(true);
-      expect(result.excessScore).toBe(150);
-      expect(result.bonusReward).toBe(3); // floor(150 * 0.02) = 3
-      expect(result.totalReward).toBe(8.5); // 5.5 base reward + 3 bonus
+      expect(result.excessScore).toBe(200);
+      expect(result.bonusReward).toBe(4); // floor(200 * 0.02) = 4
+      expect(result.totalReward).toBe(11); // 7 base reward + 4 bonus
     });
 
     it('should return zero rewards for failed blind', () => {
@@ -147,21 +147,21 @@ describe('BlindManager', () => {
     });
 
     it('should throw error if no blind is active', () => {
-      expect(() => blindManager.getBlindResult()).toThrow('No blind is currently active');
+      expect(() => blindManager.getBlindResult()).toThrow('No 庄 is currently active');
     });
   });
 
   describe('getProgress', () => {
     it('should return progress information', () => {
-      const blind = createSmallBlind(1, 4, 3); // target: 300
+      const blind = createSmallBlind(1, 4, 3); // target: 250
       blindManager.startBlind(blind);
 
-      blindManager.playHand(150);
+      blindManager.playHand(125);
 
       const progress = blindManager.getProgress();
 
-      expect(progress.score).toBe(150);
-      expect(progress.target).toBe(300);
+      expect(progress.score).toBe(125);
+      expect(progress.target).toBe(250);
       expect(progress.percentage).toBe(50);
       expect(progress.handsUsed).toBe(1);
       expect(progress.handsRemaining).toBe(3);

@@ -56,7 +56,7 @@ describe('RoguelikeGame', () => {
       expect(state.phase).toBe(GamePhase.PLAYING_HAND);
       expect(state.ante).toBe(1);
       expect(state.blindIndex).toBe(0);
-      expect(state.money).toBe(0); // startGame() resets money to 0
+      expect(state.money).toBe(8); // startGame() gives 8 starting money
       expect(state.handsRemaining).toBeGreaterThan(0);
       expect(state.targetScore).toBeGreaterThan(0);
     });

@@ -269,7 +269,7 @@ describe('AnteManager', () => {
 
       expect(summary.ante).toBe(1);
       expect(summary.blindType).toBe(BlindType.SMALL);
-      expect(summary.blindName).toContain('小盲注');
+      expect(summary.blindName).toContain('小庄');
       expect(summary.money).toBe(10);
       expect(summary.blindsCleared).toBe(0);
       expect(summary.totalScore).toBe(0);

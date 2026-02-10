@@ -231,3 +231,11 @@ if (require.main === module) {
 }
 
 export { runTests };
+
+// Vitest wrapper
+import { describe, test as it, expect } from 'vitest';
+describe('Tile System', () => {
+  it('all tests pass', () => {
+    runTests();
+  });
+});
