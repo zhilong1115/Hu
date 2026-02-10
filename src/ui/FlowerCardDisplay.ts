@@ -19,11 +19,11 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
   private tooltipText: Phaser.GameObjects.Text | null = null;
   private tooltipBg: Phaser.GameObjects.Rectangle | null = null;
 
-  // Layout constants
-  private readonly CARD_WIDTH = 100;
-  private readonly CARD_HEIGHT = 140;
-  private readonly CARD_SPACING = 15;
-  private readonly MAX_CARDS = 8;
+  // Layout constants (compact for landscape top-center placement)
+  private readonly CARD_WIDTH = 64;
+  private readonly CARD_HEIGHT = 90;
+  private readonly CARD_SPACING = 8;
+  private readonly MAX_VISIBLE_CARDS = 12; // display limit, no gameplay limit
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -34,7 +34,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
    * Set the Flower Cards to display
    */
   public setFlowerCards(cards: FlowerCard[]): void {
-    this.flowerCards = cards.slice(0, this.MAX_CARDS);
+    this.flowerCards = [...cards]; // no upper limit
     this.updateDisplay();
   }
 
@@ -80,9 +80,11 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
       this.add(cardContainer);
     });
 
-    // Fill remaining slots with empty placeholders
-    for (let i = this.flowerCards.length; i < this.MAX_CARDS; i++) {
-      const x = startX + i * (this.CARD_WIDTH + this.CARD_SPACING) + this.CARD_WIDTH / 2;
+    // Fill remaining visible slots with empty placeholders
+    const emptySlots = Math.max(0, 4 - this.flowerCards.length); // show at least 4 slots
+    for (let i = 0; i < emptySlots; i++) {
+      const idx = this.flowerCards.length + i;
+      const x = startX + idx * (this.CARD_WIDTH + this.CARD_SPACING) + this.CARD_WIDTH / 2;
       const emptySlot = this.createEmptySlot(x, 0);
       this.add(emptySlot);
     }
@@ -92,10 +94,11 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
    * Create empty slots when no cards are held
    */
   private createEmptySlots(): void {
-    const totalWidth = this.MAX_CARDS * (this.CARD_WIDTH + this.CARD_SPACING) - this.CARD_SPACING;
+    const slotCount = 4; // show 4 empty slots when no cards
+    const totalWidth = slotCount * (this.CARD_WIDTH + this.CARD_SPACING) - this.CARD_SPACING;
     const startX = -totalWidth / 2;
 
-    for (let i = 0; i < this.MAX_CARDS; i++) {
+    for (let i = 0; i < slotCount; i++) {
       const x = startX + i * (this.CARD_WIDTH + this.CARD_SPACING) + this.CARD_WIDTH / 2;
       const emptySlot = this.createEmptySlot(x, 0);
       this.add(emptySlot);
@@ -144,28 +147,28 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     container.add(border);
 
     // Flower type emoji at top
-    const emoji = this.scene.add.text(0, -50, card.getFlowerSymbol(), {
+    const emoji = this.scene.add.text(0, -28, card.getFlowerSymbol(), {
       fontFamily: 'Arial',
-      fontSize: '32px'
+      fontSize: '22px'
     });
     emoji.setOrigin(0.5);
     container.add(emoji);
 
     // Card name
-    const nameText = this.scene.add.text(0, -10, card.name, {
+    const nameText = this.scene.add.text(0, -4, card.name, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '12px',
+      fontSize: '10px',
       color: '#ffffff',
-      wordWrap: { width: this.CARD_WIDTH - 10 },
+      wordWrap: { width: this.CARD_WIDTH - 8 },
       align: 'center'
     });
     nameText.setOrigin(0.5);
     container.add(nameText);
 
     // Cost at bottom
-    const costText = this.scene.add.text(0, 50, `${card.cost}金`, {
+    const costText = this.scene.add.text(0, 30, `${card.cost}金`, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
+      fontSize: '11px',
       color: '#ffd700'
     });
     costText.setOrigin(0.5);
@@ -238,10 +241,6 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
    * Add a new card to the display
    */
   public addCard(card: FlowerCard): boolean {
-    if (this.flowerCards.length >= this.MAX_CARDS) {
-      return false;
-    }
-
     this.flowerCards.push(card);
     this.updateDisplay();
     return true;
@@ -258,7 +257,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
    * Check if inventory is full
    */
   public isFull(): boolean {
-    return this.flowerCards.length >= this.MAX_CARDS;
+    return false; // no upper limit on flower cards
   }
 
   /**
