@@ -269,7 +269,7 @@ export class BondStatusUI extends Phaser.GameObjects.Container {
       tooltipLines.push(`────────────`);
       tooltipLines.push(`拥有的神牌:`);
       for (const tile of ownedTiles) {
-        const rarityIcon = tile.rarity === 'common' ? '🟢' : tile.rarity === 'rare' ? '🔵' : tile.rarity === 'epic' ? '🟣' : '🟠';
+        const rarityIcon = tile.rarity === 'green' ? '🟢' : tile.rarity === 'blue' ? '🔵' : tile.rarity === 'purple' ? '🟣' : '🟠';
         tooltipLines.push(`${rarityIcon} ${tile.name}`);
       }
     }
