@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="mat_ice" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#A8DADC"/>
+      <stop offset="100%" stop-color="#457B9D"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="8" fill="url(#mat_ice)"/>
+  <text x="32" y="42" text-anchor="middle" font-family="'Songti SC',serif" font-size="28" fill="white" opacity="0.6">冰</text>
+</svg>
