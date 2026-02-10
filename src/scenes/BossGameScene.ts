@@ -197,93 +197,99 @@ export class BossGameScene extends Phaser.Scene {
     const centerX = this.scale.width / 2;
     const width = this.scale.width;
     const height = this.scale.height;
+    const pad = 16;
+    const smallFont = '14px';
+    const medFont = '16px';
+    const fontFamily = 'Courier New, monospace';
 
-    // ── Boss Health Bar (top center) ──
+    // ═══════════════════════════════════════════════════════
+    // LANDSCAPE LAYOUT (1280×720) — Boss variant
+    // Top-Left: Stats | Top-Center: Boss HP + Flower Cards | Top-Right: Bonds+God Tiles
+    // Middle: Play Area | Middle-Right: Hand Info
+    // Bottom-Left: Draw Pile | Bottom-Center: Hand | Bottom-Right: Buttons
+    // ═══════════════════════════════════════════════════════
+
+    // ── TOP-CENTER: Boss Health Bar ──
     this._bossHealthBar = new BossHealthBar(
-      this,
-      centerX,
-      80,
-      this._boss.name,
-      this._boss.maxHealth
+      this, centerX, 40, this._boss.name, this._boss.maxHealth
     );
 
     // ── Boss庄 Banner (below health bar) ──
-    this._bossBlindBanner = new BossBlindBanner(this, centerX, 180);
+    this._bossBlindBanner = new BossBlindBanner(this, centerX, 90);
 
-    // ── Round info ──
-    const headerY = 260;
+    // ── TOP-LEFT: Game Stats ──
+    const statsX = pad;
+    const statsY = pad;
 
-    this.add.text(centerX, headerY, `BOSS 回合 ${this._roundNumber}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '24px',
-      color: '#ff6666',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    // ── Score and resources ──
-    const infoY = headerY + 40;
-
-    this._scoreText = this.add.text(20, infoY, `分数: ${this._currentScore}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '16px',
-      color: '#00ff00'
+    this.add.text(statsX, statsY, `BOSS 回合 ${this._roundNumber}`, {
+      fontFamily, fontSize: '18px', color: '#ff6666', fontStyle: 'bold'
     });
 
-    this._targetScoreText = this.add.text(width - 20, infoY, `目标: ${this._targetScore}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '16px',
-      color: '#ffaa00'
-    }).setOrigin(1, 0);
-
-    this._handsRemainingText = this.add.text(20, infoY + 25, `剩余手数: ${this._handsRemaining}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
-      color: '#cccccc'
+    this._scoreText = this.add.text(statsX, statsY + 24, `分数: ${this._currentScore}`, {
+      fontFamily, fontSize: medFont, color: '#00ff00'
     });
 
-    this._discardsRemainingText = this.add.text(20, infoY + 45, `剩余弃牌: ${this._discardsRemaining}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
-      color: '#cccccc'
+    this._targetScoreText = this.add.text(statsX, statsY + 46, `目标: ${this._targetScore}`, {
+      fontFamily, fontSize: medFont, color: '#ffaa00'
     });
 
-    this._playerHealthText = this.add.text(width - 20, infoY + 25, `生命: ${this._playerHealth}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
-      color: '#ff6666'
-    }).setOrigin(1, 0);
-
-    this._goldText = this.add.text(width - 20, infoY + 45, `金币: ${this._gold}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
-      color: '#ffd700'
-    });
-    this._goldText.setOrigin(1, 0);
-
-    this._drawPileCountText = this.add.text(width / 2, infoY + 45, `牌堆: ${this._drawPile.length}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
-      color: '#cccccc'
-    }).setOrigin(0.5, 0);
-
-    this._meldMultiplierText = this.add.text(20, infoY + 65, `出牌倍率: ×${this._meldMultiplier}`, {
-      fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
-      color: '#ff66ff'
+    this._handsRemainingText = this.add.text(statsX, statsY + 68, `手数: ${this._handsRemaining}`, {
+      fontFamily, fontSize: smallFont, color: '#cccccc'
     });
 
-    // ── Bond Status UI ──
-    this._bondStatusUI = new BondStatusUI(this, 20, headerY + 80, this._godTileManager);
+    this._discardsRemainingText = this.add.text(statsX, statsY + 88, `弃牌: ${this._discardsRemaining}`, {
+      fontFamily, fontSize: smallFont, color: '#cccccc'
+    });
 
-    // ── God Tiles display ──
-    const godTileY = height * 0.40;
-    this._godTileDisplay = new GodTileDisplay(this, centerX, godTileY);
+    this._playerHealthText = this.add.text(statsX, statsY + 110, `❤️ ${this._playerHealth}`, {
+      fontFamily, fontSize: medFont, color: '#ff6666'
+    });
+
+    this._goldText = this.add.text(statsX, statsY + 132, `💰 ${this._gold}`, {
+      fontFamily, fontSize: medFont, color: '#ffd700'
+    });
+
+    // ── TOP-CENTER (below boss): Flower Card Area ──
+    const flowerCardY = 120;
+    this._flowerCardDisplay = new FlowerCardDisplay(this, centerX, flowerCardY);
+    this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
+    this._flowerCardDisplay.on('cardSelected', (_card: FlowerCard | null) => {});
+
+    // ── TOP-RIGHT: Bonds + God Tiles ──
+    const rightPanelX = width - pad;
+    this._bondStatusUI = new BondStatusUI(this, rightPanelX - 220, statsY, this._godTileManager);
+
+    const godTileY = statsY + 60;
+    this._godTileDisplay = new GodTileDisplay(this, rightPanelX - 110, godTileY);
     this._godTileDisplay.setGodTiles(this._activeGodTiles);
 
-    // ── Hand display ──
-    const handY = height * 0.55;
+    // ── MIDDLE-RIGHT: Hand Info ──
+    const handInfoX = width - pad;
+    const handInfoY = height * 0.40;
+
+    this._meldMultiplierText = this.add.text(handInfoX, handInfoY, `倍率: ×${this._meldMultiplier}`, {
+      fontFamily, fontSize: medFont, color: '#ff66ff'
+    }).setOrigin(1, 0);
+
+    // ── BOTTOM-LEFT: Draw Pile ──
+    const drawPileX = pad + 40;
+    const drawPileY = height - 90;
+
+    const drawPileBg = this.add.rectangle(drawPileX, drawPileY, 70, 50, 0x331111)
+      .setStrokeStyle(2, 0x664444);
+    drawPileBg.setInteractive({ useHandCursor: true });
+    drawPileBg.on('pointerdown', () => {
+      this.showMessage(`牌堆剩余: ${this._drawPile.length}张`, '#00ccff');
+    });
+
+    this._drawPileCountText = this.add.text(drawPileX, drawPileY, `🀄 ${this._drawPile.length}`, {
+      fontFamily, fontSize: medFont, color: '#cccccc'
+    }).setOrigin(0.5);
+
+    // ── BOTTOM-CENTER: Hand Tiles ──
+    const handY = height - 80;
     this._handDisplay = new HandDisplay(this, centerX, handY, this._hand, {
-      maxWidth: width - 40,
+      maxWidth: width - 300,
       enableMultiSelect: true,
       enableAutoScale: true
     });
@@ -293,41 +299,23 @@ export class BossGameScene extends Phaser.Scene {
       this.updateButtonStates();
     });
 
-    // ── Flower Card display ──
-    const flowerCardY = height * 0.72;
-    this._flowerCardDisplay = new FlowerCardDisplay(this, centerX, flowerCardY);
-    this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
-
-    // Listen to flower card events
-    this._flowerCardDisplay.on('cardSelected', (_card: FlowerCard | null) => {
-      // Card selection handled by FlowerCardDisplay
-    });
-
-    // ── Action buttons ──
-    const buttonY = height - 80;
+    // ── BOTTOM-RIGHT: Action Buttons ──
+    const btnBaseX = width - pad - 50;
+    const btnY = height - 120;
+    const btnGapV = 42;
 
     this._playHandButton = this.createButton(
-      centerX - 90,
-      buttonY,
-      '出牌',
-      () => this.onPlayHandClicked()
+      btnBaseX, btnY, '出牌', () => this.onPlayHandClicked()
     );
 
     this._discardButton = this.createButton(
-      centerX + 10,
-      buttonY,
-      '弃牌',
-      () => this.onDiscardClicked()
+      btnBaseX, btnY + btnGapV, '弃牌', () => this.onDiscardClicked()
     );
 
-    // Use Flower Card button (below main buttons)
     this._useCardButton = this.createButton(
-      centerX,
-      buttonY + 50,
-      '用花牌',
-      () => this.onUseFlowerCardClicked()
+      btnBaseX - 100, btnY + btnGapV, '用花牌', () => this.onUseFlowerCardClicked()
     );
-    this._useCardButton.setStyle({ fontSize: '16px', padding: { x: 15, y: 8 } });
+    this._useCardButton.setStyle({ fontSize: smallFont, padding: { x: 12, y: 8 } });
 
     // ── Flower card selection overlay (hidden initially) ──
     this.createFlowerSelectionOverlay();

@@ -8,20 +8,20 @@ import { GameOverScene } from './scenes/GameOverScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 600,
+  width: 1280,
+  height: 720,
   parent: 'game-container',
-  backgroundColor: '#2c1810',
+  backgroundColor: '#1a1a1a',
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     min: {
-      width: 400,
-      height: 300
+      width: 640,
+      height: 360
     },
     max: {
-      width: 1600,
-      height: 1200
+      width: 1920,
+      height: 1080
     }
   },
   scene: [
