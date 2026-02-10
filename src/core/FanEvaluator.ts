@@ -151,7 +151,7 @@ export interface Fan {
 
 /** A set of 3 tiles: either a sequence (chow) or triplet (pong). */
 export interface MeldCombo {
-  type: 'chow' | 'pong';
+  type: 'chow' | 'pong' | 'kong';
   tiles: Tile[];
 }
 
@@ -687,12 +687,40 @@ export class FanEvaluator {
    * @returns Evaluation result with detected fans, total points, and decomposition.
    */
   public static evaluateHand(tiles: Tile[]): EvaluationResult {
-    if (tiles.length !== 14) {
+    // Valid hand sizes: 14 (standard), 15 (1 kong), 16 (2 kongs), 17 (3 kongs), 18 (4 kongs)
+    if (tiles.length < 14 || tiles.length > 18) {
       return { isWinning: false, fans: [], totalPoints: 0, decomposition: null };
     }
 
+    // Extract kongs (groups of 4 identical tiles) to reduce to 14-tile evaluation
+    // Kongs are pre-formed melds that don't need decomposition
+    const preKongs: MeldCombo[] = [];
+    const remainingTiles = [...tiles];
+    
+    if (remainingTiles.length > 14) {
+      const freqMap = new Map<string, number>();
+      for (const t of remainingTiles) {
+        const key = `${t.suit}_${t.value}`;
+        freqMap.set(key, (freqMap.get(key) || 0) + 1);
+      }
+      
+      for (const [key, count] of freqMap) {
+        if (count === 4 && remainingTiles.length > 14) {
+          // Extract this kong
+          const kongTiles: Tile[] = [];
+          for (let i = remainingTiles.length - 1; i >= 0 && kongTiles.length < 4; i--) {
+            const t = remainingTiles[i];
+            if (`${t.suit}_${t.value}` === key) {
+              kongTiles.push(remainingTiles.splice(i, 1)[0]);
+            }
+          }
+          preKongs.push({ type: 'kong', tiles: kongTiles });
+        }
+      }
+    }
+
     // Expand wildcards (瓷牌/翡翠牌) into all possible interpretations
-    const tileVariants = expandWildcards(tiles);
+    const tileVariants = expandWildcards(remainingTiles);
     
     let bestOverallResult: EvaluationResult | null = null;
     
@@ -700,7 +728,15 @@ export class FanEvaluator {
     for (const variantTiles of tileVariants) {
       const result = FanEvaluator.evaluateHandInternal(variantTiles);
       
-      if (result.isWinning) {
+      if (result.isWinning && result.decomposition) {
+        // Add pre-extracted kongs back to the decomposition
+        if (preKongs.length > 0) {
+          result.decomposition.melds = [...preKongs, ...result.decomposition.melds];
+        }
+        if (bestOverallResult === null || result.totalPoints > bestOverallResult.totalPoints) {
+          bestOverallResult = result;
+        }
+      } else if (result.isWinning) {
         if (bestOverallResult === null || result.totalPoints > bestOverallResult.totalPoints) {
           bestOverallResult = result;
         }
@@ -750,7 +786,12 @@ export class FanEvaluator {
    * Check whether a set of 14 tiles forms any valid winning hand.
    */
   public static isWinningHand(tiles: Tile[]): boolean {
-    if (tiles.length !== 14) return false;
+    if (tiles.length < 14 || tiles.length > 18) return false;
+
+    // For hands with kongs (>14 tiles), use evaluateHand which handles kong extraction
+    if (tiles.length > 14) {
+      return FanEvaluator.evaluateHand(tiles).isWinning;
+    }
 
     // Expand wildcards and check if any interpretation wins
     const tileVariants = expandWildcards(tiles);
