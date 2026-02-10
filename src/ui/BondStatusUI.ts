@@ -263,6 +263,17 @@ export class BondStatusUI extends Phaser.GameObjects.Container {
       tooltipLines.push(`${prefix} Lv${lvl.level} (${lvl.required}张): ${lvl.effect}`);
     }
     
+    // Add owned god tiles for this bond
+    const ownedTiles = this.godTileManager.getOwnedByBond(bond);
+    if (ownedTiles.length > 0) {
+      tooltipLines.push(`────────────`);
+      tooltipLines.push(`拥有的神牌:`);
+      for (const tile of ownedTiles) {
+        const rarityIcon = tile.rarity === 'common' ? '🟢' : tile.rarity === 'rare' ? '🔵' : tile.rarity === 'epic' ? '🟣' : '🟠';
+        tooltipLines.push(`${rarityIcon} ${tile.name}`);
+      }
+    }
+    
     // Add current status
     tooltipLines.push(`────────────`);
     tooltipLines.push(`当前: ${status.ownedCount}张 / Lv${status.level}`);
