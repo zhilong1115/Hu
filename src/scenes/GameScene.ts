@@ -1305,6 +1305,7 @@ export class GameScene extends Phaser.Scene {
    */
   private async handlePendingFlowerDebuffs(): Promise<void> {
     const mgr = this._flowerCardManager;
+    console.log('[FlowerDebuffs] Active debuffs:', mgr.getDebuffs());
 
     // ── 梅花三弄: enter forced-discard mode ──
     if (mgr.hasDebuff('plum_sannong_pending')) {
@@ -1340,18 +1341,23 @@ export class GameScene extends Phaser.Scene {
     // ── 采菊东篱: random god tile ──
     if (mgr.hasDebuff('chrys_caiju_random_god')) {
       mgr.removeDebuff('chrys_caiju_random_god');
+      console.log('[采菊东篱] Processing debuff, adding random god tile...');
       // Add a random god tile from the pool
       const { ALL_GOD_TILES } = await import('../data/godTiles');
       const available = ALL_GOD_TILES.filter(
         gt => !this._godTileManager.hasGodTile(gt.id)
       );
+      console.log(`[采菊东篱] Available god tiles: ${available.length}/${ALL_GOD_TILES.length}`);
       if (available.length > 0) {
         const randomGod = available[Math.floor(Math.random() * available.length)];
         this._godTileManager.addGodTile(randomGod);
         this._activeGodTiles.push(randomGod as any);
         this._godTileDisplay.setGodTiles(this._activeGodTiles);
+        this._bondStatusUI.updateDisplay();
+        console.log(`[采菊东篱] Added god tile: ${randomGod.name} (${randomGod.id}), total now: ${this._activeGodTiles.length}`);
         this.showMessage(`采菊东篱: 获得神牌 ${randomGod.name}!`, '#ffd700');
       } else {
+        console.log('[采菊东篱] No available god tiles!');
         this.showMessage('采菊东篱: 没有可用的神牌', '#aaaaaa');
       }
     }
@@ -1655,17 +1661,9 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Calculate on-win flower card bonuses preview
+    // Preview on-win flower card bonuses (read-only, no side effects!)
     const chowCount = this._playedMelds.filter(m => m.type === 'chow').length;
     const pongCount = this._playedMelds.filter(m => m.type === 'pong').length;
-    const onWinResult = this._flowerCardManager.settleOnWinCards({
-      discardsRemaining: this._discardsRemaining,
-      chowCount,
-      pongCount,
-      meldCount: this._playedMelds.length,
-    });
-    // settleOnWinCards consumes cards — we need a preview method instead
-    // For now, just calculate the display from on-win cards without consuming
     const onWinCards = this._flowerCardManager.getOnWinCards();
     let previewMultAdd = 0;
     let previewMultX = 1;
