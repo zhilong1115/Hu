@@ -41,8 +41,8 @@ describe('Scoring Engine', () => {
       ];
       const result = Scoring.calculateScore(hand, fans);
 
-      expect(result.fanMultiplier).toBe(40); // 8 × 5
-      expect(result.finalScore).toBe(4000); // 100 × 40
+      expect(result.fanMultiplier).toBe(13); // 8 + 5
+      expect(result.finalScore).toBe(1300); // 100 × 13
     });
 
     test('should handle custom base score', () => {
@@ -67,7 +67,7 @@ describe('Scoring Engine', () => {
       expect(result.fanContributions).toHaveLength(2);
       expect(result.fanContributions[0].multiplier).toBe(2);
       expect(result.fanContributions[1].multiplier).toBe(4);
-      expect(result.fanMultiplier).toBe(8);
+      expect(result.fanMultiplier).toBe(6); // 2 + 4
     });
 
     test('should handle empty fans (minimum ×1)', () => {

@@ -102,14 +102,14 @@ export class Scoring {
   ): ScoreBreakdown {
     const baseScore = options.baseScore ?? DEFAULT_BASE_SCORE;
 
-    // ── Step 1: Calculate fan multiplier (multiplicative stacking) ──
+    // ── Step 1: Calculate fan multiplier (additive stacking) ──
     const fanContributions: FanContribution[] = [];
-    let fanMultiplier = 1;
+    let fanMultiplier = 0;
 
     for (const fan of detectedFans) {
       const mult = getFanMultiplier(fan.name);
       fanContributions.push({ fan, multiplier: mult });
-      fanMultiplier *= mult;  // Multiplicative stacking
+      fanMultiplier += mult;  // Additive stacking
     }
 
     // Ensure minimum ×1
