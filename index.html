@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 
-  <!-- Mobile-first viewport configuration for portrait mode -->
+  <!-- Mobile-first viewport configuration for landscape mode -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
   <!-- Mobile web app capable -->
@@ -21,7 +21,7 @@
 
   <!-- YouTube Playables compatibility -->
   <meta name="playable-game" content="true">
-  <meta name="game-orientation" content="portrait">
+  <meta name="game-orientation" content="landscape">
 
   <title>HU! - Roguelike Mahjong Deck Builder</title>
 
@@ -127,8 +127,8 @@
       50% { transform: scale(1.05); }
     }
 
-    /* Portrait orientation lock message */
-    @media (orientation: landscape) and (max-width: 896px) {
+    /* Portrait orientation warning — prompt user to rotate to landscape */
+    @media (orientation: portrait) and (max-height: 896px) {
       #orientation-warning {
         display: flex;
       }
@@ -163,7 +163,7 @@
       50% { transform: rotate(90deg); }
     }
   </style>
-  <script type="module" crossorigin src="/Hu/assets/main.DsTthTcJ.js"></script>
+  <script type="module" crossorigin src="/Hu/assets/main.BJBIZq80.js"></script>
 </head>
 <body>
   <!-- Loading screen -->
@@ -178,7 +178,7 @@
   <!-- Portrait orientation reminder -->
   <div id="orientation-warning">
     <div class="rotate-icon">📱</div>
-    <div>Please rotate your device to portrait mode for the best experience.</div>
+    <div>Please rotate your device to landscape mode for the best experience.</div>
   </div>
 
   <!-- Game container -->
