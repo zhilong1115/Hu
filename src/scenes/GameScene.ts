@@ -1236,6 +1236,8 @@ export class GameScene extends Phaser.Scene {
     // Update game state from context
     this._handsRemaining = result.context.handsRemaining;
     this._discardsRemaining = result.context.discardsRemaining;
+    // Sync to Hand object (Hand has its own internal counter checked by discardTiles)
+    this._hand.setDiscardsRemaining(this._discardsRemaining);
 
     // Apply gold delta from card effects (bamboo/chrys gold generation)
     const goldDelta = (result.context as any).goldDelta || 0;

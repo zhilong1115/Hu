@@ -1257,6 +1257,7 @@ export class BossGameScene extends Phaser.Scene {
 
     this._handsRemaining = result.context.handsRemaining;
     this._discardsRemaining = result.context.discardsRemaining;
+    this._hand.setDiscardsRemaining(this._discardsRemaining);
 
     const goldDelta = (result.context as any).goldDelta || 0;
     if (goldDelta > 0) {
