@@ -256,8 +256,8 @@ export class GameScene extends Phaser.Scene {
     // ═══════════════════════════════════════════════════════
 
     const pad = 16;
-    const smallFont = '14px';
-    const medFont = '16px';
+    const smallFont = '18px';
+    const medFont = '22px';
     const fontFamily = 'Courier New, monospace';
 
     // ── TOP-LEFT: Game Stats ──

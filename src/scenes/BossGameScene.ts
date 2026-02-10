@@ -206,8 +206,8 @@ export class BossGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const pad = 16;
-    const smallFont = '14px';
-    const medFont = '16px';
+    const smallFont = '18px';
+    const medFont = '22px';
     const fontFamily = 'Courier New, monospace';
 
     // ═══════════════════════════════════════════════════════
