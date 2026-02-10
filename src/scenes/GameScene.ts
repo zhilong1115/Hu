@@ -295,6 +295,11 @@ export class GameScene extends Phaser.Scene {
     this._flowerCardDisplay.on('cardSelected', (card: FlowerCard | null) => {
       this.onFlowerCardSelected(card);
     });
+    this._flowerCardDisplay.on('cardDragUsed', (card: FlowerCard) => {
+      this._flowerCardDisplay.clearSelection();
+      (this._flowerCardDisplay as any).selectedCard = card;
+      this.onUseFlowerCardClicked();
+    });
 
     // ── TOP-RIGHT: Bonds + God Tiles (羁绊+神牌) ──
     const rightPanelX = width - pad;
@@ -381,11 +386,7 @@ export class GameScene extends Phaser.Scene {
     );
     this._huButton.setStyle({ backgroundColor: '#8B0000' });
 
-    // Use Flower Card button (near other buttons)
-    const useCardButton = this.createButton(
-      btnBaseX - 100, btnY + btnGapV, '用花牌', () => this.onUseFlowerCardClicked()
-    );
-    useCardButton.setStyle({ fontSize: smallFont, padding: { x: 12, y: 8 } });
+    // Flower card use: drag card out of flower area (no button needed)
 
     // ── Score popup (hidden initially) ──
     this._scorePopup = new ScorePopup(this, centerX, height / 2);

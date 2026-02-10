@@ -72,7 +72,7 @@ export class BossGameScene extends Phaser.Scene {
   // Buttons
   private _playHandButton!: Phaser.GameObjects.Text;
   private _discardButton!: Phaser.GameObjects.Text;
-  private _useCardButton!: Phaser.GameObjects.Text;
+  // _useCardButton removed — drag-to-use replaces it
 
   // Flower card selection overlay
   private _flowerSelectionOverlay!: Phaser.GameObjects.Container;
@@ -262,6 +262,11 @@ export class BossGameScene extends Phaser.Scene {
     this._flowerCardDisplay = new FlowerCardDisplay(this, centerX, flowerCardY);
     this._flowerCardDisplay.setFlowerCards(this._flowerCardManager.getCards());
     this._flowerCardDisplay.on('cardSelected', (_card: FlowerCard | null) => {});
+    this._flowerCardDisplay.on('cardDragUsed', (card: FlowerCard) => {
+      this._flowerCardDisplay.clearSelection();
+      (this._flowerCardDisplay as any).selectedCard = card;
+      this.onUseFlowerCardClicked();
+    });
 
     // ── TOP-RIGHT: Bonds + God Tiles ──
     const rightPanelX = width - pad;
@@ -325,10 +330,7 @@ export class BossGameScene extends Phaser.Scene {
       btnBaseX, btnY + btnGapV, '弃牌', () => this.onDiscardClicked()
     );
 
-    this._useCardButton = this.createButton(
-      btnBaseX - 100, btnY + btnGapV, '用花牌', () => this.onUseFlowerCardClicked()
-    );
-    this._useCardButton.setStyle({ fontSize: smallFont, padding: { x: 12, y: 8 } });
+    // Flower card use: drag card out of flower area (no button needed)
 
     // ── Flower card selection overlay (hidden initially) ──
     this.createFlowerSelectionOverlay();
@@ -1094,9 +1096,6 @@ export class BossGameScene extends Phaser.Scene {
       this._playHandButton.setAlpha(0.3);
       this._playHandButton.setStyle({ color: '#666666' });
 
-      this._useCardButton.setAlpha(0.3);
-      this._useCardButton.setStyle({ color: '#666666' });
-
       if (hasSelection) {
         this._discardButton.setAlpha(1);
         this._discardButton.setStyle({ color: '#ffdd00', backgroundColor: '#555500' });
@@ -1110,9 +1109,6 @@ export class BossGameScene extends Phaser.Scene {
     }
 
     this._discardButton.setText('弃牌');
-    this._useCardButton.setAlpha(1);
-    this._useCardButton.setStyle({ color: '#ffffff' });
-
     if (has14Tiles && this._handsRemaining > 0) {
       this._playHandButton.setAlpha(1);
       this._playHandButton.setStyle({ color: '#ffffff' });

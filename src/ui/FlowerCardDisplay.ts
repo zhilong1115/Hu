@@ -19,6 +19,13 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
   private tooltipText: Phaser.GameObjects.Text | null = null;
   private tooltipBg: Phaser.GameObjects.Rectangle | null = null;
 
+  // Drag state
+  private draggingCard: FlowerCard | null = null;
+  private draggingContainer: Phaser.GameObjects.Container | null = null;
+  private dragStartPos: { x: number; y: number } = { x: 0, y: 0 };
+  private dragOriginalPos: { x: number; y: number } = { x: 0, y: 0 };
+  private readonly DRAG_THRESHOLD = 60; // pixels past bottom edge to trigger use
+
   // Layout constants (compact for landscape top-center placement)
   private readonly CARD_WIDTH = 80;
   private readonly CARD_HEIGHT = 112;
@@ -184,11 +191,78 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     rarityText.setOrigin(0);
     container.add(rarityText);
 
-    // Make interactive
-    bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerover', () => this.showTooltip(card, x, y));
+    // Make interactive with drag support
+    bg.setInteractive({ useHandCursor: true, draggable: true });
+    bg.on('pointerover', () => {
+      if (!this.draggingCard) this.showTooltip(card, x, y);
+    });
     bg.on('pointerout', () => this.hideTooltip());
-    bg.on('pointerdown', () => this.onCardClicked(card));
+
+    // Drag start
+    bg.on('dragstart', (_pointer: Phaser.Input.Pointer) => {
+      this.hideTooltip();
+      this.draggingCard = card;
+      this.draggingContainer = container;
+      this.dragOriginalPos = { x: container.x, y: container.y };
+      this.selectedCard = card;
+
+      // Visual feedback: scale up + glow
+      this.scene.tweens.add({
+        targets: container,
+        scaleX: 1.15,
+        scaleY: 1.15,
+        duration: 100,
+        ease: 'Sine.Out'
+      });
+      border.setStrokeStyle(4, 0x00ffff);
+      container.setDepth(100);
+    });
+
+    // Drag move
+    bg.on('drag', (_pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
+      if (this.draggingContainer !== container) return;
+      // Convert world drag coords to local container coords
+      const localX = dragX - this.x;
+      const localY = dragY - this.y;
+      container.x = localX;
+      container.y = localY;
+    });
+
+    // Drag end
+    bg.on('dragend', (_pointer: Phaser.Input.Pointer) => {
+      if (this.draggingContainer !== container) return;
+
+      const dragDeltaY = container.y - this.dragOriginalPos.y;
+
+      // Reset visual
+      this.scene.tweens.add({
+        targets: container,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 100,
+        ease: 'Sine.Out'
+      });
+      border.setStrokeStyle(2, borderColor);
+      container.setDepth(0);
+
+      if (dragDeltaY > this.DRAG_THRESHOLD) {
+        // Dragged far enough down — use the card
+        this.draggingCard = null;
+        this.draggingContainer = null;
+        this.emit('cardDragUsed', card);
+      } else {
+        // Snap back
+        this.scene.tweens.add({
+          targets: container,
+          x: this.dragOriginalPos.x,
+          y: this.dragOriginalPos.y,
+          duration: 150,
+          ease: 'Back.Out'
+        });
+        this.draggingCard = null;
+        this.draggingContainer = null;
+      }
+    });
 
     // Store references for animations
     (container as any)._flowerCardBg = bg;
