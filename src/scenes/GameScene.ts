@@ -199,7 +199,13 @@ export class GameScene extends Phaser.Scene {
     AudioManager.getInstance().playMusic('gameplay');
 
     // Set background
-    this.cameras.main.setBackgroundColor('#1a1a1a');
+    if (this.textures.exists('game_bg')) {
+      const bg = this.add.image(this.scale.width / 2, this.scale.height / 2, 'game_bg');
+      bg.setDisplaySize(this.scale.width, this.scale.height);
+      bg.setDepth(-1);
+    } else {
+      this.cameras.main.setBackgroundColor('#1a1a1a');
+    }
 
     // Initialize animation manager
     this._animManager = new AnimationManager(this);

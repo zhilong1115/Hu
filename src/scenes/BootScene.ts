@@ -13,7 +13,6 @@ export class BootScene extends Phaser.Scene {
 
     // Loading progress listener
     this.load.on('progress', (value: number) => {
-      // Map progress from 0.2 to 0.4 during asset loading
       this.updateHTMLLoadingProgress(0.2 + value * 0.2, 'Loading assets...');
     });
 
@@ -22,7 +21,50 @@ export class BootScene extends Phaser.Scene {
       this.updateHTMLLoadingProgress(0.4, 'Assets loaded');
     });
 
-    // Simulate loading time with a tiny placeholder
+    // ── Tile SVGs ──
+    // Number suits: wan(万)=man, tiao(条)=sou, tong(筒)=pin
+    const suitMap: Record<string, string> = { wan: 'man', tiao: 'sou', tong: 'pin' };
+    for (const [suit, filePrefix] of Object.entries(suitMap)) {
+      for (let v = 1; v <= 9; v++) {
+        this.load.svg(`face:${suit}-${v}`, `assets/tiles/${filePrefix}_${v}.svg`, { width: 64, height: 90 });
+      }
+    }
+
+    // Wind tiles: east=1, south=2, west=3, north=4
+    const winds: Record<number, string> = { 1: 'east', 2: 'south', 3: 'west', 4: 'north' };
+    for (const [val, name] of Object.entries(winds)) {
+      this.load.svg(`face:wind-${val}`, `assets/tiles/wind_${name}.svg`, { width: 64, height: 90 });
+    }
+
+    // Dragon tiles: red=1, green=2, white=3
+    const dragons: Record<number, string> = { 1: 'red', 2: 'green', 3: 'white' };
+    for (const [val, name] of Object.entries(dragons)) {
+      this.load.svg(`face:dragon-${val}`, `assets/tiles/dragon_${name}.svg`, { width: 64, height: 90 });
+    }
+
+    // Tile back
+    this.load.svg('tile-back', 'assets/tiles/tile_back.svg', { width: 64, height: 90 });
+
+    // ── UI assets ──
+    this.load.svg('game_bg', 'assets/ui/game_bg.svg', { width: 800, height: 600 });
+    this.load.svg('btn_play', 'assets/ui/btn_play.svg');
+    this.load.svg('btn_discard', 'assets/ui/btn_discard.svg');
+    this.load.svg('btn_hu', 'assets/ui/btn_hu.svg');
+    this.load.svg('btn_use_flower', 'assets/ui/btn_use_flower.svg');
+    this.load.svg('panel_bg', 'assets/ui/panel_bg.svg');
+
+    // ── Effect assets ──
+    const effects = [
+      'god_fortune', 'god_gamble', 'god_insight', 'god_transform',
+      'flower_bamboo', 'flower_chrysanthemum', 'flower_orchid', 'flower_plum',
+      'material_bronze', 'material_silver', 'material_gold', 'material_jade',
+      'material_bamboo_mat', 'material_ice', 'material_glass'
+    ];
+    for (const name of effects) {
+      this.load.svg(name, `assets/effects/${name}.svg`);
+    }
+
+    // Placeholder fallback
     this.load.image('placeholder', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==');
   }
 

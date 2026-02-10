@@ -98,6 +98,7 @@ export class TileSprite extends Phaser.GameObjects.Container {
     this._tile = tile;
     const key = getTileTextureKey(tile.suit, tile.value);
     this._faceImage.setTexture(key);
+    this._faceImage.setDisplaySize(TILE_W, TILE_H);
     // Rebuild material indicator in case material changed
     this.buildMaterialIndicator();
     this.applyState();
@@ -147,15 +148,17 @@ export class TileSprite extends Phaser.GameObjects.Container {
     this._glow.setVisible(false);
     this.add(this._glow);
 
-    // Face image (centred within container)
+    // Face image (centred within container, scaled to tile dimensions)
     const faceKey = getTileTextureKey(this._tile.suit, this._tile.value);
     this._faceImage = new Phaser.GameObjects.Image(this.scene, 0, 0, faceKey);
     this._faceImage.setOrigin(0.5, 0.5);
+    this._faceImage.setDisplaySize(w, h);
     this.add(this._faceImage);
 
     // Back image
     this._backImage = new Phaser.GameObjects.Image(this.scene, 0, 0, 'tile-back');
     this._backImage.setOrigin(0.5, 0.5);
+    this._backImage.setDisplaySize(w, h);
     this._backImage.setVisible(false);
     this.add(this._backImage);
 

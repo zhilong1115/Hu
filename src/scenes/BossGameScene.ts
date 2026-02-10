@@ -152,7 +152,14 @@ export class BossGameScene extends Phaser.Scene {
     AudioManager.getInstance().playSFX('bossAppear');
 
     // Set background
-    this.cameras.main.setBackgroundColor('#1a0000');
+    if (this.textures.exists('game_bg')) {
+      const bg = this.add.image(this.scale.width / 2, this.scale.height / 2, 'game_bg');
+      bg.setDisplaySize(this.scale.width, this.scale.height);
+      bg.setDepth(-1);
+      bg.setTint(0xff8888); // Red tint for boss scene
+    } else {
+      this.cameras.main.setBackgroundColor('#1a0000');
+    }
 
     // Initialize game
     this.initializeGameState();

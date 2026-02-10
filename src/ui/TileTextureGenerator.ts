@@ -42,6 +42,15 @@ const COLORS = {
  *   tile-back
  */
 export function generateTileTextures(scene: Phaser.Scene): void {
+  // If SVG assets were loaded in BootScene preload(), skip programmatic generation.
+  // Check for a representative key to detect SVG loading.
+  if (scene.textures.exists('face:wan-1') && scene.textures.exists('tile-back')) {
+    console.log('[TileTextureGenerator] SVG tile textures detected, skipping programmatic generation');
+    return;
+  }
+
+  console.log('[TileTextureGenerator] No SVG tiles found, generating programmatic textures');
+
   // ── Number suits ──
   for (let v = 1; v <= 9; v++) {
     generateFaceTexture(scene, TileSuit.Wan, v, getWanChar(v), COLORS.wan);
