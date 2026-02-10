@@ -92,6 +92,7 @@ export class GameScene extends Phaser.Scene {
   private _goldText!: Phaser.GameObjects.Text;
   private _meldMultiplierText!: Phaser.GameObjects.Text;
   private _meldInfoText!: Phaser.GameObjects.Text;
+  private _handPatternText!: Phaser.GameObjects.Text;
 
   // Buttons
   private _playMeldButton!: Phaser.GameObjects.Text;
@@ -291,6 +292,11 @@ export class GameScene extends Phaser.Scene {
 
     this._meldInfoText = this.add.text(handInfoX, handInfoY + 24, '', {
       fontFamily, fontSize: smallFont, color: '#aaaaaa',
+      wordWrap: { width: 200 }, align: 'right'
+    }).setOrigin(1, 0);
+
+    this._handPatternText = this.add.text(handInfoX, handInfoY + 48, '屁胡 50分', {
+      fontFamily, fontSize: smallFont, color: '#ffaa00',
       wordWrap: { width: 200 }, align: 'right'
     }).setOrigin(1, 0);
 
@@ -1628,7 +1634,33 @@ export class GameScene extends Phaser.Scene {
 
   /* ── UI Updates ────────────────────────────────────────── */
 
+  private updateHandPatternDisplay(): void {
+    // Combine hand tiles + meld tiles for evaluation
+    const allTiles = [
+      ...this._hand.tiles,
+      ...this._playedMelds.flatMap(m => m.tiles)
+    ];
+
+    if (allTiles.length < 14) {
+      // Not enough tiles yet, show pihu as minimum
+      this._handPatternText.setText('屁胡 50分');
+      this._handPatternText.setStyle({ color: '#ffaa00' });
+      return;
+    }
+
+    const evalResult = FanEvaluator.evaluateHand(allTiles as Tile[]);
+    if (evalResult.isWinning && evalResult.fans.length > 0) {
+      const fanNames = evalResult.fans.map(f => f.name).join(' + ');
+      this._handPatternText.setText(`${fanNames} ${evalResult.totalPoints}分`);
+      this._handPatternText.setStyle({ color: '#00ff00' });
+    } else {
+      this._handPatternText.setText('屁胡 50分');
+      this._handPatternText.setStyle({ color: '#ffaa00' });
+    }
+  }
+
   private updateButtonStates(): void {
+    this.updateHandPatternDisplay();
     const selectedTiles = this._handDisplay.selectedTiles;
     const hasSelection = selectedTiles.length > 0;
     const meldType = hasSelection ? this.detectMeldType(selectedTiles) : null;

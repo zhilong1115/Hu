@@ -67,6 +67,7 @@ export class BossGameScene extends Phaser.Scene {
   private _goldText!: Phaser.GameObjects.Text;
   private _drawPileCountText!: Phaser.GameObjects.Text;
   private _meldMultiplierText!: Phaser.GameObjects.Text;
+  private _handPatternText!: Phaser.GameObjects.Text;
 
   // Buttons
   private _playHandButton!: Phaser.GameObjects.Text;
@@ -269,6 +270,11 @@ export class BossGameScene extends Phaser.Scene {
 
     this._meldMultiplierText = this.add.text(handInfoX, handInfoY, `倍率: ×${this._meldMultiplier}`, {
       fontFamily, fontSize: medFont, color: '#ff66ff'
+    }).setOrigin(1, 0);
+
+    this._handPatternText = this.add.text(handInfoX, handInfoY + 24, '屁胡 50分', {
+      fontFamily, fontSize: smallFont, color: '#ffaa00',
+      wordWrap: { width: 200 }, align: 'right'
     }).setOrigin(1, 0);
 
     // ── BOTTOM-LEFT: Draw Pile ──
@@ -1000,7 +1006,31 @@ export class BossGameScene extends Phaser.Scene {
 
   /* ── UI Updates ────────────────────────────────────────── */
 
+  private updateHandPatternDisplay(): void {
+    const allTiles = [
+      ...this._hand.tiles,
+      ...this._playedMelds.flatMap(m => m.tiles)
+    ];
+
+    if (allTiles.length < 14) {
+      this._handPatternText.setText('屁胡 50分');
+      this._handPatternText.setStyle({ color: '#ffaa00' });
+      return;
+    }
+
+    const evalResult = FanEvaluator.evaluateHand(allTiles as Tile[]);
+    if (evalResult.isWinning && evalResult.fans.length > 0) {
+      const fanNames = evalResult.fans.map(f => f.name).join(' + ');
+      this._handPatternText.setText(`${fanNames} ${evalResult.totalPoints}分`);
+      this._handPatternText.setStyle({ color: '#00ff00' });
+    } else {
+      this._handPatternText.setText('屁胡 50分');
+      this._handPatternText.setStyle({ color: '#ffaa00' });
+    }
+  }
+
   private updateButtonStates(): void {
+    this.updateHandPatternDisplay();
     const hasSelection = this._handDisplay.hasSelection;
     const has14Tiles = this._hand.tiles.length === 14;
 
