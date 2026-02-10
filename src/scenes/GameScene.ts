@@ -1641,22 +1641,81 @@ export class GameScene extends Phaser.Scene {
       ...this._playedMelds.flatMap(m => m.tiles)
     ];
 
-    if (allTiles.length < 14) {
-      // Not enough tiles yet, show pihu as minimum
-      this._handPatternText.setText('屁胡 50分');
-      this._handPatternText.setStyle({ color: '#ffaa00' });
-      return;
+    // Evaluate hand pattern
+    let baseScore = 50; // pihu
+    let fanText = '屁胡';
+    let isWinning = false;
+
+    if (allTiles.length >= 14) {
+      const evalResult = FanEvaluator.evaluateHand(allTiles as Tile[]);
+      if (evalResult.isWinning && evalResult.fans.length > 0) {
+        fanText = evalResult.fans.map(f => f.name).join('+');
+        baseScore = evalResult.totalPoints;
+        isWinning = true;
+      }
     }
 
-    const evalResult = FanEvaluator.evaluateHand(allTiles as Tile[]);
-    if (evalResult.isWinning && evalResult.fans.length > 0) {
-      const fanNames = evalResult.fans.map(f => f.name).join(' + ');
-      this._handPatternText.setText(`${fanNames} ${evalResult.totalPoints}分`);
-      this._handPatternText.setStyle({ color: '#00ff00' });
-    } else {
-      this._handPatternText.setText('屁胡 50分');
-      this._handPatternText.setStyle({ color: '#ffaa00' });
+    // Calculate on-win flower card bonuses preview
+    const chowCount = this._playedMelds.filter(m => m.type === 'chow').length;
+    const pongCount = this._playedMelds.filter(m => m.type === 'pong').length;
+    const onWinResult = this._flowerCardManager.settleOnWinCards({
+      discardsRemaining: this._discardsRemaining,
+      chowCount,
+      pongCount,
+      meldCount: this._playedMelds.length,
+    });
+    // settleOnWinCards consumes cards — we need a preview method instead
+    // For now, just calculate the display from on-win cards without consuming
+    const onWinCards = this._flowerCardManager.getOnWinCards();
+    let previewMultAdd = 0;
+    let previewMultX = 1;
+    const flowerBonusTexts: string[] = [];
+    for (const card of onWinCards) {
+      switch (card.defId) {
+        case 'orchid_jinlan': previewMultAdd += 3; flowerBonusTexts.push(`${card.name}+3`); break;
+        case 'orchid_lanxin': previewMultAdd += 5; flowerBonusTexts.push(`${card.name}+5`); break;
+        case 'orchid_langui': previewMultX *= 1.5; flowerBonusTexts.push(`${card.name}×1.5`); break;
+        case 'orchid_konggu': previewMultX *= 2; flowerBonusTexts.push(`${card.name}×2`); break;
+        case 'orchid_huizhi': {
+          const b = this._discardsRemaining * 2;
+          previewMultAdd += b;
+          flowerBonusTexts.push(`${card.name}+${b}`);
+          break;
+        }
+        case 'orchid_lanting': {
+          const b = chowCount * 2;
+          previewMultAdd += b;
+          flowerBonusTexts.push(`${card.name}+${b}`);
+          break;
+        }
+        case 'orchid_youlan': {
+          const b = pongCount * 2;
+          previewMultAdd += b;
+          flowerBonusTexts.push(`${card.name}+${b}`);
+          break;
+        }
+        case 'chrys_jucan':
+          flowerBonusTexts.push(`${card.name}×?`);
+          break;
+      }
     }
+
+    const totalMult = (this._meldMultiplier + previewMultAdd) * previewMultX;
+    const estimatedScore = Math.floor(baseScore * totalMult);
+
+    // Update multiplier text to include flower bonuses
+    let multDisplay = `出牌倍率: ×${this._meldMultiplier}`;
+    if (previewMultAdd > 0 || previewMultX > 1) {
+      multDisplay += ` → 总倍率: ×${totalMult.toFixed(1)}`;
+      if (flowerBonusTexts.length > 0) {
+        multDisplay += `\n🌺 ${flowerBonusTexts.join(', ')}`;
+      }
+    }
+    this._meldMultiplierText.setText(multDisplay);
+
+    // Update pattern text with estimated score
+    this._handPatternText.setText(`${fanText} ${estimatedScore}分`);
+    this._handPatternText.setStyle({ color: isWinning ? '#00ff00' : '#ffaa00' });
   }
 
   private updateButtonStates(): void {
