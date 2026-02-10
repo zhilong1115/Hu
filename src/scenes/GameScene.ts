@@ -256,8 +256,8 @@ export class GameScene extends Phaser.Scene {
     // ═══════════════════════════════════════════════════════
 
     const pad = 16;
-    const smallFont = '18px';
-    const medFont = '22px';
+    const smallFont = '36px';
+    const medFont = '44px';
     const fontFamily = 'Courier New, monospace';
 
     // ── TOP-LEFT: Game Stats ──
@@ -265,7 +265,7 @@ export class GameScene extends Phaser.Scene {
     const statsY = pad;
 
     this.add.text(statsX, statsY, `回合 ${this._roundNumber}`, {
-      fontFamily, fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
+      fontFamily, fontSize: '40px', color: '#ffffff', fontStyle: 'bold'
     });
 
     this._scoreText = this.add.text(statsX, statsY + 26, `分数: ${this._currentScore}`, {
@@ -417,7 +417,7 @@ export class GameScene extends Phaser.Scene {
     // Title
     const title = this.add.text(0, -150, '选择花牌', {
       fontFamily: 'Courier New, monospace',
-      fontSize: '28px',
+      fontSize: '56px',
       color: '#ffd700'
     }).setOrigin(0.5);
     this._flowerSelectionOverlay.add(title);
@@ -453,7 +453,7 @@ export class GameScene extends Phaser.Scene {
 
         // Card symbol
         const symbol = this.add.text(x, y - 50, card.getFlowerSymbol(), {
-          fontSize: '36px'
+          fontSize: '72px'
         }).setOrigin(0.5);
         symbol.setData('isCardButton', true);
         this._flowerSelectionOverlay.add(symbol);
@@ -461,7 +461,7 @@ export class GameScene extends Phaser.Scene {
         // Card name
         const name = this.add.text(x, y, card.name, {
           fontFamily: 'Courier New, monospace',
-          fontSize: '14px',
+          fontSize: '28px',
           color: '#ffffff',
           wordWrap: { width: cardWidth - 10 },
           align: 'center'
@@ -472,7 +472,7 @@ export class GameScene extends Phaser.Scene {
         // Card description (truncated)
         const desc = this.add.text(x, y + 40, card.description.substring(0, 20) + '...', {
           fontFamily: 'Courier New, monospace',
-          fontSize: '10px',
+          fontSize: '20px',
           color: '#aaaaaa',
           wordWrap: { width: cardWidth - 10 },
           align: 'center'
@@ -516,7 +516,7 @@ export class GameScene extends Phaser.Scene {
   ): Phaser.GameObjects.Text {
     const button = this.add.text(x, y, label, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '20px',
+      fontSize: '40px',
       color: '#ffffff',
       backgroundColor: '#333333',
       padding: { x: 25, y: 12 }
@@ -1534,7 +1534,7 @@ export class GameScene extends Phaser.Scene {
       // Title
       const titleText = this.add.text(0, -screenH / 2 + 30, title, {
         fontFamily: 'Courier New, monospace',
-        fontSize: '20px',
+        fontSize: '40px',
         color: '#ffd700',
         wordWrap: { width: screenW - 40 },
         align: 'center'
@@ -1598,7 +1598,7 @@ export class GameScene extends Phaser.Scene {
 
         const tileLabel = this.add.text(x, y, tile.displayName, {
           fontFamily: 'Courier New, monospace',
-          fontSize: '13px',
+          fontSize: '26px',
           color: '#ffffff',
           align: 'center',
           wordWrap: { width: tileW - 4 }
@@ -1642,7 +1642,7 @@ export class GameScene extends Phaser.Scene {
       const confirmBtn = this.add.text(0, screenH / 2 - 45,
         pickCount === 0 ? '确定' : `确定 (0/${pickCount})`, {
         fontFamily: 'Courier New, monospace',
-        fontSize: '20px',
+        fontSize: '40px',
         color: '#ffffff',
         backgroundColor: '#336633',
         padding: { x: 30, y: 12 }
@@ -1857,7 +1857,7 @@ export class GameScene extends Phaser.Scene {
       // Meld type label
       const label = this.add.text(x, -20, meld.type === 'chow' ? '吃' : meld.type === 'pong' ? '碰' : '杠', {
         fontFamily: 'Courier New, monospace',
-        fontSize: '14px',
+        fontSize: '28px',
         color: meld.type === 'kong' ? '#ff6600' : '#66ff66'
       }).setOrigin(0.5);
       this._meldDisplayContainer.add(label);
@@ -1866,7 +1866,7 @@ export class GameScene extends Phaser.Scene {
       const tileNames = meld.tiles.map(t => t.displayName).join(' ');
       const tilesText = this.add.text(x, 5, tileNames, {
         fontFamily: 'Courier New, monospace',
-        fontSize: '10px',
+        fontSize: '20px',
         color: '#cccccc',
         wordWrap: { width: meldWidth - 5 },
         align: 'center'
@@ -1978,7 +1978,7 @@ export class GameScene extends Phaser.Scene {
 
     const messageText = this.add.text(centerX, centerY + 20, message, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '20px',
+      fontSize: '40px',
       color: color,
       backgroundColor: '#000000aa',
       padding: { x: 20, y: 10 },

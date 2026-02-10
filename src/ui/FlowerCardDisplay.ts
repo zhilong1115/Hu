@@ -27,8 +27,8 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
   private readonly DRAG_THRESHOLD = 60; // pixels past bottom edge to trigger use
 
   // Layout constants (compact for landscape top-center placement)
-  private readonly CARD_WIDTH = 90;
-  private readonly CARD_HEIGHT = 126;
+  private readonly CARD_WIDTH = 180;
+  private readonly CARD_HEIGHT = 252;
   private readonly CARD_SPACING = 8;
   private readonly MAX_VISIBLE_CARDS = 12; // display limit, no gameplay limit
 
@@ -126,7 +126,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     // Empty slot text
     const text = this.scene.add.text(0, 0, '空位', {
       fontFamily: 'Courier New, monospace',
-      fontSize: '18px',
+      fontSize: '36px',
       color: '#666666'
     });
     text.setOrigin(0.5);
@@ -156,7 +156,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     // Flower type emoji at top
     const emoji = this.scene.add.text(0, -28, card.getFlowerSymbol(), {
       fontFamily: 'Arial',
-      fontSize: '28px'
+      fontSize: '56px'
     });
     emoji.setOrigin(0.5);
     container.add(emoji);
@@ -164,7 +164,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     // Card name
     const nameText = this.scene.add.text(0, -4, card.name, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
+      fontSize: '28px',
       color: '#ffffff',
       wordWrap: { width: this.CARD_WIDTH - 8 },
       align: 'center'
@@ -175,7 +175,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     // Cost at bottom
     const costText = this.scene.add.text(0, 30, `${card.cost}金`, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
+      fontSize: '28px',
       color: '#ffd700'
     });
     costText.setOrigin(0.5);
@@ -185,7 +185,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
     const rarityText = this.scene.add.text(-this.CARD_WIDTH / 2 + 8, -this.CARD_HEIGHT / 2 + 8,
       this.getRarityText(card.rarity), {
       fontFamily: 'Courier New, monospace',
-      fontSize: '14px',
+      fontSize: '28px',
       color: this.getRarityColor(card.rarity)
     });
     rarityText.setOrigin(0);
@@ -412,7 +412,7 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
 
     this.tooltipText = this.scene.add.text(tooltipX, tooltipY, tooltipContent, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '16px',
+      fontSize: '32px',
       color: '#ffffff',
       wordWrap: { width: maxWidth - padding * 2 }
     });

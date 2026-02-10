@@ -206,8 +206,8 @@ export class BossGameScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const pad = 16;
-    const smallFont = '18px';
-    const medFont = '22px';
+    const smallFont = '36px';
+    const medFont = '44px';
     const fontFamily = 'Courier New, monospace';
 
     // ═══════════════════════════════════════════════════════
@@ -883,7 +883,7 @@ export class BossGameScene extends Phaser.Scene {
 
       const titleText = this.add.text(0, -screenH / 2 + 30, title, {
         fontFamily: 'Courier New, monospace',
-        fontSize: '20px',
+        fontSize: '40px',
         color: '#ffd700',
         wordWrap: { width: screenW - 40 },
         align: 'center'
@@ -941,7 +941,7 @@ export class BossGameScene extends Phaser.Scene {
 
         const tileLabel = this.add.text(x, y, tile.displayName, {
           fontFamily: 'Courier New, monospace',
-          fontSize: '13px',
+          fontSize: '26px',
           color: '#ffffff',
           align: 'center',
           wordWrap: { width: tileW - 4 }
@@ -983,7 +983,7 @@ export class BossGameScene extends Phaser.Scene {
       const confirmBtn = this.add.text(0, screenH / 2 - 45,
         pickCount === 0 ? '确定' : `确定 (0/${pickCount})`, {
         fontFamily: 'Courier New, monospace',
-        fontSize: '20px',
+        fontSize: '40px',
         color: '#ffffff',
         backgroundColor: '#336633',
         padding: { x: 30, y: 12 }
@@ -1210,7 +1210,7 @@ export class BossGameScene extends Phaser.Scene {
 
     const title = this.add.text(0, -150, '选择花牌', {
       fontFamily: 'Courier New, monospace',
-      fontSize: '28px',
+      fontSize: '56px',
       color: '#ffd700'
     }).setOrigin(0.5);
     this._flowerSelectionOverlay.add(title);
@@ -1241,14 +1241,14 @@ export class BossGameScene extends Phaser.Scene {
         this._flowerSelectionOverlay.add(cardBg);
 
         const symbol = this.add.text(x, y - 50, card.getFlowerSymbol(), {
-          fontSize: '36px'
+          fontSize: '72px'
         }).setOrigin(0.5);
         symbol.setData('isCardButton', true);
         this._flowerSelectionOverlay.add(symbol);
 
         const name = this.add.text(x, y, card.name, {
           fontFamily: 'Courier New, monospace',
-          fontSize: '14px',
+          fontSize: '28px',
           color: '#ffffff',
           wordWrap: { width: cardWidth - 10 },
           align: 'center'
@@ -1606,7 +1606,7 @@ export class BossGameScene extends Phaser.Scene {
 
     const rewardDisplay = this.add.text(centerX, centerY, rewardText, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '20px',
+      fontSize: '40px',
       color: '#00ff00'
     });
     rewardDisplay.setOrigin(0.5);
@@ -1653,7 +1653,7 @@ export class BossGameScene extends Phaser.Scene {
 
     const scoreText = this.add.text(centerX, centerY + 20, `最终分数: ${this._currentScore}`, {
       fontFamily: 'Courier New, monospace',
-      fontSize: '20px',
+      fontSize: '40px',
       color: '#ffffff'
     });
     scoreText.setOrigin(0.5);
