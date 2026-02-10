@@ -257,14 +257,37 @@ export class HandDisplay extends Phaser.GameObjects.Container {
 
     const newTileSprite = this._tileSprites.find(s => s.tile.id === tile.id);
     if (newTileSprite) {
-      newTileSprite.y = -100;
+      // Start from off-screen left (draw pile area)
+      newTileSprite.x = -this.scene.scale.width / 2;
+      newTileSprite.y = 20;
       newTileSprite.alpha = 0;
+      newTileSprite.setScale(0.6);
+
+      // Calculate final x position
+      const finalX = newTileSprite.x;
+      const tiles = this._hand.tiles;
+      const idx = tiles.findIndex(t => t.id === tile.id);
+      const tileWidth = TileSprite.tileWidth;
+      const totalWidth = tiles.length * tileWidth + (tiles.length - 1) * this._config.tileGap;
+      let scaleFactor = 1;
+      if (this._config.enableAutoScale && totalWidth > this._config.maxWidth) {
+        scaleFactor = this._config.maxWidth / totalWidth;
+      }
+      const scaledTileWidth = tileWidth * scaleFactor;
+      const scaledGap = this._config.tileGap * scaleFactor;
+      const finalWidth = tiles.length * scaledTileWidth + (tiles.length - 1) * scaledGap;
+      const startX = -finalWidth / 2 + scaledTileWidth / 2;
+      const targetX = startX + idx * (scaledTileWidth + scaledGap);
+
+      newTileSprite.x = -this.scene.scale.width / 2;
 
       this.scene.tweens.add({
         targets: newTileSprite,
+        x: targetX,
         y: 0,
         alpha: 1,
-        duration: 300,
+        scale: scaleFactor,
+        duration: 350,
         ease: 'Back.Out'
       });
     }
@@ -282,12 +305,17 @@ export class HandDisplay extends Phaser.GameObjects.Container {
     }
 
     let completed = 0;
-    sprites.forEach(sprite => {
+    sprites.forEach((sprite, i) => {
+      // Fly out with rotation and scale down
       this.scene.tweens.add({
         targets: sprite,
-        y: 100,
+        y: -120,
+        x: sprite.x + (Math.random() - 0.5) * 60,
         alpha: 0,
-        duration: 200,
+        scale: 0.4,
+        rotation: (Math.random() - 0.5) * 0.6,
+        duration: 300,
+        delay: i * 40,
         ease: 'Power2.In',
         onComplete: () => {
           completed++;

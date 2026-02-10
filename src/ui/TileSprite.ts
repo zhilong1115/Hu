@@ -362,15 +362,32 @@ export class TileSprite extends Phaser.GameObjects.Container {
 
   private animateTransition(from: TileState, to: TileState): void {
     if (to === TileState.Selected) {
-      // Pop-up ease
+      // Pop-up ease with slight scale bounce
       this.scene.tweens.add({
         targets: this._faceImage,
         y: SELECTED_RAISE,
-        duration: 150,
+        duration: 180,
         ease: 'Back.Out',
+      });
+      // Subtle scale bounce
+      this.scene.tweens.add({
+        targets: this,
+        scale: this.scale * 1.08,
+        duration: 100,
+        yoyo: true,
+        ease: 'Sine.InOut',
+      });
+      // Glow pulse animation
+      this._glow.setAlpha(0.3);
+      this.scene.tweens.add({
+        targets: this._glow,
+        alpha: SELECTED_GLOW_ALPHA,
+        duration: 200,
+        ease: 'Sine.Out',
       });
     } else if (from === TileState.Selected && to === TileState.FaceUp) {
       // Settle back down
+      this.scene.tweens.killTweensOf(this._glow);
       this.scene.tweens.add({
         targets: this._faceImage,
         y: 0,

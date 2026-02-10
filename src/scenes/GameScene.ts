@@ -17,6 +17,7 @@ import { ALL_FLOWER_CARDS, FlowerCardDef } from '../data/flowerCards';
 import { createFlowerCardFromData } from '../roguelike/FlowerCard';
 import { DeckVariant, DECK_VARIANTS, isRedDoraTile, getRedDoraChipBonus } from '../core/DeckVariant';
 import { AudioManager } from '../audio/AudioManager';
+import { AnimationManager } from '../ui/AnimationManager';
 import { GodTileManager } from '../core/GodTileManager';
 import { GodTileBond, getGodTileById } from '../data/godTiles';
 import { Material } from '../data/materials';
@@ -79,6 +80,12 @@ export class GameScene extends Phaser.Scene {
   
   // New God Tile Manager (bond system)
   private _godTileManager!: GodTileManager;
+
+  // Animation Manager
+  private _animManager!: AnimationManager;
+
+  // Draw pile visual elements (for ambient animation)
+  private _drawPileBg!: Phaser.GameObjects.Rectangle;
 
   // Meld display container
   private _meldDisplayContainer!: Phaser.GameObjects.Container;
@@ -194,13 +201,22 @@ export class GameScene extends Phaser.Scene {
     // Set background
     this.cameras.main.setBackgroundColor('#1a1a1a');
 
+    // Initialize animation manager
+    this._animManager = new AnimationManager(this);
+
     // Initialize game components
     this.initializeGameState();
     this.createUI();
     this.dealInitialHand();
 
+    // Start ambient floating particles
+    this._animManager.startAmbientParticles(0xffd700, 12);
+
     // Fade in from shop
     this.cameras.main.fadeIn(500);
+
+    // Show round start banner
+    this._animManager.roundStartBanner(this._roundNumber);
   }
 
   private initializeGameState(): void {
@@ -309,9 +325,12 @@ export class GameScene extends Phaser.Scene {
     const drawPileY = height - 90;
 
     // Draw pile visual box
-    const drawPileBg = this.add.rectangle(drawPileX, drawPileY, 70, 50, 0x222233)
+    this._drawPileBg = this.add.rectangle(drawPileX, drawPileY, 70, 50, 0x222233)
       .setStrokeStyle(2, 0x555577);
+    const drawPileBg = this._drawPileBg;
     drawPileBg.setInteractive({ useHandCursor: true });
+    // Ambient wobble
+    this._animManager.drawPileWobble(drawPileBg);
     drawPileBg.on('pointerdown', () => {
       // Show revealed/known tiles info
       this.showMessage(`牌堆剩余: ${this._drawPile.length}张`, '#00ccff');
@@ -500,18 +519,21 @@ export class GameScene extends Phaser.Scene {
 
     button.on('pointerdown', () => {
       AudioManager.getInstance().playSFX('buttonClick');
+      this._animManager.buttonPress(button);
       callback();
     });
 
     button.on('pointerover', () => {
       if (button.alpha === 1) {
         button.setStyle({ backgroundColor: '#555555' });
+        this._animManager.buttonHover(button, true);
       }
     });
 
     button.on('pointerout', () => {
       const bgColor = button === this._huButton ? '#8B0000' : '#333333';
       button.setStyle({ backgroundColor: button.alpha === 1 ? bgColor : '#333333' });
+      this._animManager.buttonHover(button, false);
     });
 
     return button;
@@ -709,6 +731,13 @@ export class GameScene extends Phaser.Scene {
     this._gold += meldGoldReward;
     console.log(`[Gold] Meld ${meldType} reward: +${meldGoldReward}, Before: ${goldBefore}, After: ${this._gold}`);
     this.updateGoldDisplay();
+    
+    // Gold gain particle animation
+    this._animManager.goldGain(
+      this.scale.width / 2, this.scale.height * 0.32,
+      this._goldText.x, this._goldText.y,
+      meldGoldReward
+    );
 
     // Show meld animation with gold reward
     this.showMessage(`${this.getMeldName(meldType)} ×${meld.multiplier} +${meldGoldReward}💰`, '#00ff00');
@@ -978,29 +1007,26 @@ export class GameScene extends Phaser.Scene {
       // Trigger God Tile visual effects
       this._godTileDisplay.triggerActivatedTiles();
 
-      // Add screen effects based on score quality
-      if (totalPoints >= 88) {
-        // Epic win - confetti + shake + zoom
-        ScreenEffects.shakeIntense(this);
-        ScreenEffects.confetti(this, 60);
-        ScreenEffects.zoom(this, 1.05, 400);
-      } else if (totalPoints >= 64) {
-        // Big win - shake + particles
-        ScreenEffects.shake(this, 8, 400);
-        ScreenEffects.explosion(this, this.scale.width / 2, this.scale.height / 2, 0xff4444, 30);
-      } else if (totalPoints >= 24) {
-        // Good win - subtle shake
-        ScreenEffects.shake(this, 5, 300);
-        ScreenEffects.flash(this, 0xffd700, 150);
-      } else if (scoreBreakdown.finalScore >= 10000) {
-        // Big score even with low fan - particles
-        ScreenEffects.explosion(this, this.scale.width / 2, this.scale.height / 2, 0x4da6ff, 20);
-      }
+      // Hu celebration with AnimationManager
+      this._animManager.huCelebration(() => {
+        // Add screen effects based on score quality
+        if (totalPoints >= 88) {
+          ScreenEffects.confetti(this, 60);
+          ScreenEffects.zoom(this, 1.05, 400);
+        } else if (totalPoints >= 64) {
+          ScreenEffects.explosion(this, this.scale.width / 2, this.scale.height / 2, 0xff4444, 30);
+        } else if (totalPoints >= 24) {
+          ScreenEffects.flash(this, 0xffd700, 150);
+        } else if (scoreBreakdown.finalScore >= 10000) {
+          ScreenEffects.explosion(this, this.scale.width / 2, this.scale.height / 2, 0x4da6ff, 20);
+        }
 
-      // Small delay before showing score popup
-      this.time.delayedCall(300, () => {
-        // Show score popup with fan pattern names
-        this.showScorePopup(scoreBreakdown, evalResult.fans);
+        // Fan announcement animation
+        const fanNames = evalResult.fans.map(f => `${f.name} (${f.points}番)`);
+        this._animManager.fanAnnouncement(fanNames, this.scale.height * 0.15, () => {
+          // Show score popup with fan pattern names
+          this.showScorePopup(scoreBreakdown, evalResult.fans);
+        });
       });
     });
 
@@ -1032,16 +1058,18 @@ export class GameScene extends Phaser.Scene {
       this.updateGoldDisplay();
     }
 
+    // Pihu muted animation
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
+    this._animManager.pihuAnimation(cx, cy - 50, finalScore, () => {
+      this.checkWinLoseCondition();
+    });
+
     this.showMessage(`屁胡! +${finalScore}分 (基础50分 × ${this._meldMultiplier}倍)${unusedDiscardBonus > 0 ? ` +${unusedDiscardBonus}💰` : ''}`, '#ffaa00');
 
     // Update UI
     this.updateScoreDisplay();
     this.updateHandsRemaining();
-
-    // Check win/lose after delay
-    this.time.delayedCall(1500, () => {
-      this.checkWinLoseCondition();
-    });
   }
 
   private async onDiscardClicked(): Promise<void> {
@@ -1860,6 +1888,17 @@ export class GameScene extends Phaser.Scene {
   private updateScoreDisplay(): void {
     this._scoreText.setText(`分数: ${this._currentScore}`);
 
+    // Pop effect on score change
+    if (this._animManager) {
+      this.tweens.add({
+        targets: this._scoreText,
+        scale: 1.25,
+        duration: 120,
+        yoyo: true,
+        ease: 'Sine.InOut'
+      });
+    }
+
     // Highlight if close to target
     if (this._currentScore >= this._targetScore) {
       this._scoreText.setStyle({ color: '#00ff00' });
@@ -1887,11 +1926,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateDrawPileCount(): void {
-    this._drawPileCountText.setText(`牌堆: ${this._drawPile.length}`);
+    this._drawPileCountText.setText(`🀄 ${this._drawPile.length}`);
+    
+    // Draw pile urgency animation when low
+    if (this._drawPileBg) {
+      if (this._drawPile.length > 0 && this._drawPile.length <= 5) {
+        this._animManager.drawPileLowShake(this._drawPileBg);
+        this._drawPileBg.setStrokeStyle(2, 0xff4444);
+      } else if (this._drawPile.length > 5) {
+        this.tweens.killTweensOf(this._drawPileBg);
+        this._drawPileBg.setAngle(0);
+        this._drawPileBg.setStrokeStyle(2, 0x555577);
+        this._animManager.drawPileWobble(this._drawPileBg);
+      }
+    }
   }
 
-  private updateGoldDisplay(): void {
-    this._goldText.setText(`金币: ${this._gold}`);
+  private updateGoldDisplay(delta?: number): void {
+    this._goldText.setText(`💰 ${this._gold}`);
     
     // Flash effect when gold changes
     this.tweens.add({
@@ -1901,6 +1953,11 @@ export class GameScene extends Phaser.Scene {
       yoyo: true,
       ease: 'Power2.Out'
     });
+
+    // Red flash for spending
+    if (delta !== undefined && delta < 0) {
+      this._animManager.goldSpend(this._goldText);
+    }
   }
 
   private showScorePopup(breakdown: ScoreBreakdown, fans: Fan[]): void {
@@ -1912,25 +1969,37 @@ export class GameScene extends Phaser.Scene {
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2 - 100;
 
-    const messageText = this.add.text(centerX, centerY, message, {
+    const messageText = this.add.text(centerX, centerY + 20, message, {
       fontFamily: 'Courier New, monospace',
       fontSize: '20px',
       color: color,
-      backgroundColor: '#000000',
-      padding: { x: 20, y: 10 }
+      backgroundColor: '#000000aa',
+      padding: { x: 20, y: 10 },
+      stroke: '#000000',
+      strokeThickness: 2
     });
     messageText.setOrigin(0.5);
     messageText.setAlpha(0);
+    messageText.setDepth(8000);
 
-    // Fade in and out
+    // Slide up + fade in, hold, then fade out
     this.tweens.add({
       targets: messageText,
       alpha: 1,
-      duration: 200,
-      yoyo: true,
-      hold: 1500,
+      y: centerY,
+      duration: 250,
+      ease: 'Back.Out',
       onComplete: () => {
-        messageText.destroy();
+        this.time.delayedCall(1500, () => {
+          this.tweens.add({
+            targets: messageText,
+            alpha: 0,
+            y: centerY - 30,
+            duration: 300,
+            ease: 'Power2.In',
+            onComplete: () => messageText.destroy()
+          });
+        });
       }
     });
   }
@@ -2046,6 +2115,15 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Gold gain particles fly to counter
+    if (roundEndGold.gold > 0) {
+      this._animManager.goldGain(
+        this.scale.width / 2, this.scale.height / 2,
+        this._goldText.x, this._goldText.y,
+        roundEndGold.gold
+      );
+    }
+
     this.tweens.add({
       targets: winText,
       alpha: 1,
@@ -2055,7 +2133,7 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => {
         this.time.delayedCall(1000, () => {
           // Fade out before transition
-          this.cameras.main.fadeOut(500);
+          this._animManager.roundEndTransition();
 
           this.time.delayedCall(500, () => {
             const nextRound = this._roundNumber + 1;
