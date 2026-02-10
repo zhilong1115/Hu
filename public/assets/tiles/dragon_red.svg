@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="90" viewBox="0 0 64 90">
+  <rect x="1" y="1" width="62" height="88" rx="6" ry="6" fill="#F5F0E8" stroke="#8B7355" stroke-width="1.5"/>
+  <rect x="3" y="3" width="58" height="84" rx="4" ry="4" fill="none" stroke="#D4C5A9" stroke-width="0.5"/>
+  
+  <rect x="16" y="18" width="32" height="54" rx="3" fill="none" stroke="#E63946" stroke-width="2"/>
+  <text x="32" y="56" text-anchor="middle" font-family="'Songti SC','SimSun',serif" font-size="38" font-weight="bold" fill="#E63946">中</text>
+
+</svg>

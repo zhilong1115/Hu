@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <radialGradient id="rbg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#162447"/>
+      <stop offset="100%" stop-color="#0D1117"/>
+    </radialGradient>
+    <pattern id="mjpat" width="80" height="80" patternUnits="userSpaceOnUse">
+      <text x="40" y="48" text-anchor="middle" font-family="'Songti SC',serif" font-size="22" fill="#1B2838" opacity="0.12">胡</text>
+    </pattern>
+  </defs>
+  <rect width="800" height="600" fill="url(#rbg)"/>
+  <rect width="800" height="600" fill="url(#mjpat)"/>
+</svg>
