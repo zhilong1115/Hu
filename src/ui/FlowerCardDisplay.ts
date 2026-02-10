@@ -20,8 +20,8 @@ export class FlowerCardDisplay extends Phaser.GameObjects.Container {
   private tooltipBg: Phaser.GameObjects.Rectangle | null = null;
 
   // Layout constants (compact for landscape top-center placement)
-  private readonly CARD_WIDTH = 64;
-  private readonly CARD_HEIGHT = 90;
+  private readonly CARD_WIDTH = 80;
+  private readonly CARD_HEIGHT = 112;
   private readonly CARD_SPACING = 8;
   private readonly MAX_VISIBLE_CARDS = 12; // display limit, no gameplay limit
 

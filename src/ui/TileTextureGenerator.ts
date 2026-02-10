@@ -5,8 +5,8 @@ import { TileSuit, WindValue, DragonValue } from '../core/Tile';
  * Tile dimensions — mobile-first, responsive to canvas size.
  * Base design at 800×600; scale factor applied at render time.
  */
-export const TILE_W = 52;
-export const TILE_H = 72;
+export const TILE_W = 72;
+export const TILE_H = 100;
 const CORNER_R = 6;
 
 /* ── colour palette ─────────────────────────────────────── */
