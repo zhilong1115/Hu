@@ -1122,8 +1122,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Draw replacement tiles
-    const baseDraw = Math.min(selectedTiles.length, this._drawPile.length);
+    // Draw replacement tiles (skip in forced-discard mode — flower effect handles its own draw)
+    const baseDraw = this._pendingFlowerEffect
+      ? 0
+      : Math.min(selectedTiles.length, this._drawPile.length);
 
     if (extraDraws > 0 && this._drawPile.length >= baseDraw + extraDraws) {
       // 浑水摸鱼: draw baseDraw + extraDraws tiles, let player pick baseDraw to keep

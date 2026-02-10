@@ -743,8 +743,10 @@ export class BossGameScene extends Phaser.Scene {
       }
     }
 
-    // Draw replacement tiles
-    const baseDraw = Math.min(selectedTiles.length, this._drawPile.length);
+    // Draw replacement tiles (skip in forced-discard mode — flower effect handles its own draw)
+    const baseDraw = this._pendingFlowerEffect
+      ? 0
+      : Math.min(selectedTiles.length, this._drawPile.length);
 
     if (extraDraws > 0 && this._drawPile.length >= baseDraw + extraDraws) {
       const totalDraw = baseDraw + Math.min(extraDraws, this._drawPile.length - baseDraw);
