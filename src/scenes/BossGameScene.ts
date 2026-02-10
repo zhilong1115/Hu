@@ -689,6 +689,12 @@ export class BossGameScene extends Phaser.Scene {
       this.showMessage('寒梅傲雪: 弃任意数量!', '#ff88ff');
     }
 
+    // Normal discard: max 5 tiles per discard action (unless unlimited from flower effect or forced-discard mode)
+    if (!hasUnlimitedDiscard && !this._pendingFlowerEffect && selectedTiles.length > 5) {
+      this.showMessage('每次最多弃5张牌', '#ff4444');
+      return;
+    }
+
     // Discard selected tiles
     const success = this._pendingFlowerEffect
       ? this._hand.removeTiles(selectedTiles)
