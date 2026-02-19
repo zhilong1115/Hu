@@ -21,39 +21,39 @@ export class BootScene extends Phaser.Scene {
       this.updateHTMLLoadingProgress(0.4, 'Assets loaded');
     });
 
-    // ── Tile SVGs ──
+    // ── Tile PNGs (cyberpunk neon style) ──
     // Number suits: wan(万)=man, tiao(条)=sou, tong(筒)=pin
     const suitMap: Record<string, string> = { wan: 'man', tiao: 'sou', tong: 'pin' };
     for (const [suit, filePrefix] of Object.entries(suitMap)) {
       for (let v = 1; v <= 9; v++) {
-        this.load.svg(`face:${suit}-${v}`, `assets/tiles/${filePrefix}_${v}.svg`, { width: 64, height: 90 });
+        this.load.image(`face:${suit}-${v}`, `assets/tiles/${filePrefix}_${v}.png`);
       }
     }
 
     // Wind tiles: east=1, south=2, west=3, north=4
     const winds: Record<number, string> = { 1: 'east', 2: 'south', 3: 'west', 4: 'north' };
     for (const [val, name] of Object.entries(winds)) {
-      this.load.svg(`face:wind-${val}`, `assets/tiles/wind_${name}.svg`, { width: 64, height: 90 });
+      this.load.image(`face:wind-${val}`, `assets/tiles/wind_${name}.png`);
     }
 
     // Dragon tiles: red=1, green=2, white=3
     const dragons: Record<number, string> = { 1: 'red', 2: 'green', 3: 'white' };
     for (const [val, name] of Object.entries(dragons)) {
-      this.load.svg(`face:dragon-${val}`, `assets/tiles/dragon_${name}.svg`, { width: 64, height: 90 });
+      this.load.image(`face:dragon-${val}`, `assets/tiles/dragon_${name}.png`);
     }
 
     // Tile back
-    this.load.svg('tile-back', 'assets/tiles/tile_back.svg', { width: 64, height: 90 });
+    this.load.image('tile-back', 'assets/tiles/tile_back.png');
 
-    // ── UI assets ──
-    this.load.svg('game_bg', 'assets/ui/game_bg.svg', { width: 800, height: 600 });
-    this.load.svg('btn_play', 'assets/ui/btn_play.svg');
-    this.load.svg('btn_discard', 'assets/ui/btn_discard.svg');
-    this.load.svg('btn_hu', 'assets/ui/btn_hu.svg');
-    this.load.svg('btn_use_flower', 'assets/ui/btn_use_flower.svg');
-    this.load.svg('panel_bg', 'assets/ui/panel_bg.svg');
+    // ── UI assets (PNG) ──
+    this.load.image('game_bg', 'assets/ui/game_bg.png');
+    this.load.image('btn_play', 'assets/ui/btn_play.png');
+    this.load.image('btn_discard', 'assets/ui/btn_discard.png');
+    this.load.image('btn_hu', 'assets/ui/btn_hu.png');
+    this.load.image('btn_use_flower', 'assets/ui/btn_use_flower.png');
+    this.load.image('panel_bg', 'assets/ui/panel_bg.png');
 
-    // ── Effect assets ──
+    // ── Effect assets (still SVG until Artist provides PNGs) ──
     const effects = [
       'god_fortune', 'god_gamble', 'god_insight', 'god_transform',
       'flower_bamboo', 'flower_chrysanthemum', 'flower_orchid', 'flower_plum',
